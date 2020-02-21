@@ -8,3 +8,4 @@ submake_all_%: %
 all: submake_all_src
 clean: 
 	rm -rf build/
+rebuild: clean all
