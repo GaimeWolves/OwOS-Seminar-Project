@@ -1,3 +1,7 @@
+ifndef BUILD_DIR
+export BUILD_DIR=$(PWD)/build
+endif
+
 MAKE = make
 
 .DEFAULT_GOAL := all
