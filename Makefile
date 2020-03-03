@@ -4,9 +4,9 @@ export BUILD_DIR = $(PWD)/build
 export SRC_DIR = $(PWD)/src
 
 submake_all_%: %
-	$(MAKE) -C $< all
+	-$(MAKE) -C $< all
 submake_setupiso_%: %
-	$(MAKE) -C $< setupiso
+	-$(MAKE) -C $< setupiso
 
 setupiso:
 	mkdir -p $(BUILD_DIR)
