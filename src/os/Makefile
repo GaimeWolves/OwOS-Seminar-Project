@@ -5,7 +5,7 @@ MAKE = make
 export CC := i686-elf-gcc
 export AR := ar rcs
 export LFLAGS := -ffreestanding -fno-pie -nostdlib
-export CFLAGS := -c -O0 -m32 -masm=intel -g -Wall -Wextra -I$(SRC_DIR)/os/include -D _DEBUG -D _I686
+export CFLAGS := -c -O0 -m32 -masm=intel -g -Wall -Wextra -I$(SRC_DIR)/os/include -D _DEBUG
 
 submake_all_%: %
 	$(MAKE) -C $< all
