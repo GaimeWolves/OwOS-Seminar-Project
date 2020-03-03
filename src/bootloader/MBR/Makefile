@@ -4,6 +4,8 @@ NASM = nasm
 
 all: make-folders MBR.bin
 	@echo "Building MBR in\n$(BOOTLOADER_BUILD_DIR)"
+
+setupiso:
 	
 MBR.bin: main.asm
 		$(NASM) -f bin $< -o "$(BOOTLOADER_BUILD_DIR)/$@" -I .

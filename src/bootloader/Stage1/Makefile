@@ -4,6 +4,8 @@ NASM = nasm
 
 all: make-folders Stage1.bin
 	@echo "Building Stage1 in\n$(BOOTLOADER_BUILD_DIR)"
+
+setupiso:
 	
 Stage1.bin: main.asm
 		$(NASM) -f bin $< -o "$(BOOTLOADER_BUILD_DIR)/$@" -I .
