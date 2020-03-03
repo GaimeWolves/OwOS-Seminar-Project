@@ -1,4 +1,5 @@
-HAL_BUILD_DIR = $(BUILD_DIR)/os/hal
+BUILD_DIR ?= ${PWD}/build
+HAL_BUILD_DIR := $(BUILD_DIR)/os/hal
 
 C_SRC := $(shell find . -name '*.c') # Recursively finds all C-Files in this directory
 C_OBJ := $(patsubst %.c, ${HAL_BUILD_DIR}/%.o, $(C_SRC)) # Replaces the file type of all C-Files with OBJ-Files
