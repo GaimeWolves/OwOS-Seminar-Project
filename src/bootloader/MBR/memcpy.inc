@@ -1,5 +1,5 @@
 %define SRC_SEG 0x7c0
-%define DEST_SEG 0x900
+%define DEST_SEG 0x070
 
 [bits 16]
 

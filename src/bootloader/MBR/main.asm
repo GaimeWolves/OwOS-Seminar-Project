@@ -1,14 +1,15 @@
-%define MBR_ADDRESS 0x9000
+%define MBR_ADDRESS 0x0600
 
 [bits 16]
 [org MBR_ADDRESS]
 
+cli
 ;push the drive number and pass it to the partition bootloader
 push dx
 
 %include "memcpy.inc"
 
-jmp main
+jmp 0x0:main
 
 main:
 	
