@@ -1,2 +1,2 @@
 #pragma once
-typedef unsigned size_t;
+typedef long unsigned int size_t;
