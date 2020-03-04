@@ -1,4 +1,4 @@
-#include <stdlibc.h>
+#include <stdlib.h>
 char* uitoa(size_t num, char* buf, size_t base, bool prepend_zeros)
 {
 	if (base < 2)
