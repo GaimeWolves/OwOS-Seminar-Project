@@ -2,4 +2,8 @@ bin/
 build/
 fs/
 .vs/
+.vscode/
 .ccls
+
+OSDev.log
+bochsrc.bxrc
