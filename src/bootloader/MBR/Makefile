@@ -1,7 +1,9 @@
+BUILD_DIR ?= "${PWD}/build"
 BOOTLOADER_BUILD_DIR = $(BUILD_DIR)/Bootloader/MBR
 
 NASM = nasm
 
+.DEFAULT_GOAL := all
 all: make-folders MBR.bin
 	@echo "Building MBR in\n$(BOOTLOADER_BUILD_DIR)"
 

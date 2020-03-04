@@ -1,4 +1,4 @@
-BUILD_DIR ?= ${PWD}/build
+BUILD_DIR ?= "${PWD}/build"
 OS_BUILD_DIR := $(BUILD_DIR)/os
 
 MAKE := make
@@ -8,12 +8,13 @@ export AR := ar rcs
 export LFLAGS := -ffreestanding -fno-pie -nostdlib
 export CFLAGS := -c -O0 -m32 -masm=intel -g -Wall -Wextra -I$(SRC_DIR)/os/include -D _DEBUG
 
-submake_all_%: %
-	-$(MAKE) -C $< all
-	
+.DEFAULT_GOAL := all
 all: make-folders ${OS_BUILD_DIR}/kernel.bin
 	@echo "Building OS in:"
 	@echo ${OS_BUILD_DIR}
+
+submake_all_%: %
+	-$(MAKE) -C $< all
 	
 setupiso:
 

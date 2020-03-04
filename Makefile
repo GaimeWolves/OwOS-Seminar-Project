@@ -1,7 +1,10 @@
 MAKE = make
 
-export BUILD_DIR = $(PWD)/build
-export SRC_DIR = $(PWD)/src
+export BUILD_DIR = "$(PWD)/build"
+export SRC_DIR = "$(PWD)/src"
+
+.DEFAULT_GOAL := all
+all: setupiso submake_all_src submake_setupiso_src combineiso
 
 submake_all_%: %
 	-$(MAKE) -C $< all
@@ -17,8 +20,6 @@ setupiso:
 combineiso:
 	dd if=$(BUILD_DIR)/partition.iso of=$(BUILD_DIR)/disk.iso seek=1 count=99999
 
-
-all: setupiso submake_all_src submake_setupiso_src combineiso
 clean:
 	rm -rf build/
 rebuild: clean all

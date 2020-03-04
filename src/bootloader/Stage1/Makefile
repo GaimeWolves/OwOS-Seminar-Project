@@ -1,7 +1,9 @@
+BUILD_DIR ?= "${PWD}/build"
 BOOTLOADER_BUILD_DIR = $(BUILD_DIR)/Bootloader/Stage1
 
 NASM = nasm
 
+.DEFAULT_GOAL := all
 all: make-folders Stage1.bin
 	@echo "Building Stage1 in\n$(BOOTLOADER_BUILD_DIR)"
 
