@@ -1,7 +1,11 @@
 MAKE = make
 
+export PWD = $(shell pwd)
+
 export BUILD_DIR = "$(PWD)/build"
 export SRC_DIR = "$(PWD)/src"
+
+loopback_interface := $(shell losetup -f)
 
 .DEFAULT_GOAL := all
 all: setupiso submake_all_src submake_setupiso_src combineiso
@@ -14,12 +18,19 @@ submake_setupiso_%: %
 setupiso:
 	mkdir -p $(BUILD_DIR)
 	dd if=/dev/zero of=$(BUILD_DIR)/disk.iso count=100000
-	dd if=/dev/zero of=$(BUILD_DIR)/partition.iso count=99999
 	sfdisk $(BUILD_DIR)/disk.iso < disk.config
+ifndef loopback_interface
+	$(error no loopback interface available)
+endif
+	mkdir -p fs
+	losetup -P $(loopback_interface) $(BUILD_DIR)/disk.iso
+	mkfs.vfat -F 32 -D 0x80 $(loopback_interface)p1
+	mount $(loopback_interface)p1 fs
 
 combineiso:
-	dd if=$(BUILD_DIR)/partition.iso of=$(BUILD_DIR)/disk.iso seek=1 count=99999
+	umount fs
+	losetup -d $(loopback_interface)
 
 clean:
-	rm -rf build/
+	rm -rf $(BUILD_DIR)
 rebuild: clean all
