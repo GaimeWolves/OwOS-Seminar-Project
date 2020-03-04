@@ -5,7 +5,7 @@ export PWD = $(shell pwd)
 export BUILD_DIR = "$(PWD)/build"
 export SRC_DIR = "$(PWD)/src"
 
-loopback_interface := $(shell losetup -f)
+export loopback_interface := $(shell losetup -f)
 
 .DEFAULT_GOAL := all
 all: setupiso submake_all_src submake_setupiso_src combineiso
