@@ -16,20 +16,20 @@ bpbBytesPerSector:  		DW 512					; Number of bytes per sector	(2 bytes)
 bpbSectorsPerCluster: 		DB 1					; Number of sectors per cluster	(1 byte )
 bpbReservedSectors: 		DW 1					; Number of reserved sectors	(2 bytes)
 bpbNumberOfFATs: 			DB 2					; Number of FATs				(1 byte )
-bpbRootEntries: 			DW ;;;;					; Number of directory entries	(2 bytes) (Must be set so that the root directory occupies entire sectors)
-bpbTotalSectors: 			DW ;;;;					; Total count of sectors		(2 bytes) (If this value is 0, it means there are more than 65535 sectors in the volume, and the actual count is stored in the Large Sector Count entry at 0x20)
+bpbRootEntries: 			DW 0					; Number of directory entries	(2 bytes) (Must be set so that the root directory occupies entire sectors)
+bpbTotalSectors: 			DW 0					; Total count of sectors		(2 bytes) (If this value is 0, it means there are more than 65535 sectors in the volume, and the actual count is stored in the Large Sector Count entry at 0x20)
 bpbMedia: 					DB 0xF8					; Media descriptor type			(1 byte )
 bpbSectorsPerFAT: 			DW 0					; (FAT12/16 only)				(2 bytes)
-bpbSectorsPerTrack: 		DW ;;					; Number of sectors per track	(2 bytes)
+bpbSectorsPerTrack: 		DW 0					; Number of sectors per track	(2 bytes)
 bpbHeadsPerCylinder: 		DW 2					; Number of heads				(2 bytes)
 bpbHiddenSectors: 			DD 0					; Number of hidden sectors		(4 bytes)
-bpbTotalSectorsBig:			DD ;					; Total count of sectors (large)(4 bytes)
-bsSizeOfFAT: 				DD ;					; Size of FAT in sectors		(4 bytes)
+bpbTotalSectorsBig:			DD 0					; Total count of sectors (large)(4 bytes)
+bsSizeOfFAT: 				DD 0					; Size of FAT in sectors		(4 bytes)
 bsFlags: 					DW 0					; Flags							(2 bytes)
-bsFATVersion:		 		DW ;					; FAT version					(2 byteS)
-bsRootDirCluster:			DD ;0x02				; First cluster of the root dir	(4 bytes)
-bsFSInfoSector:				DW ;					; Sector of the FSInfo struct	(2 bytes)
-bsBackupBootSector:			DW ;					; Sector of the backupbootsector(2 bytes)
+bsFATVersion:		 		DW 0					; FAT version					(2 byteS)
+bsRootDirCluster:			DD 0x02					; First cluster of the root dir	(4 bytes)
+bsFSInfoSector:				DW 0					; Sector of the FSInfo struct	(2 bytes)
+bsBackupBootSector:			DW 0					; Sector of the backupbootsector(2 bytes)
 							DQ 0					; Reserved
 							DD 0					; Reserved						(12 bytes)
 bsDriveNumber: 				DB 0					; Drive Number					(1 byte )
@@ -79,5 +79,5 @@ sti
 
 
 ;Fill sector and write magic WORD
-times 510-($$-$) db 0x0
+times 510-($-$$) db 0x0
 dw 0xAA55
