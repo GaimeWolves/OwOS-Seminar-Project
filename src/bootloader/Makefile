@@ -5,7 +5,7 @@ all: submake_all_Stage1 submake_all_MBR
 
 submake_all_%: %
 	-$(MAKE) -C $< all
-submake_setupiso_%: %
-	-$(MAKE) -C $< setupiso
+submake_setupboot_%: %
+	-$(MAKE) -C $< setupboot
 	
-setupiso: submake_setupiso_Stage1 submake_setupiso_MBR
+setupboot: submake_setupboot_Stage1 submake_setupboot_MBR

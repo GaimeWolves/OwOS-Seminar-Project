@@ -8,12 +8,14 @@ export SRC_DIR = "$(PWD)/src"
 export loopback_interface := $(shell losetup -f)
 
 .DEFAULT_GOAL := all
-all: setupiso submake_all_src submake_setupiso_src combineiso
+all: setupiso submake_all_src submake_setupboot_src setup_iso_settings submake_setupiso_src clear_iso_settings
 
 submake_all_%: %
 	-$(MAKE) -C $< all
 submake_setupiso_%: %
 	-$(MAKE) -C $< setupiso
+submake_setupboot_%: %
+	-$(MAKE) -C $< setupboot
 
 setupiso:
 	mkdir -p $(BUILD_DIR)
@@ -24,10 +26,12 @@ ifndef loopback_interface
 endif
 	mkdir -p fs
 	losetup -P $(loopback_interface) $(BUILD_DIR)/disk.iso
-	mkfs.vfat -F 32 -D 0x80 $(loopback_interface)p1
+	mkfs.vfat -F 32 -D 0x80 -b 2 $(loopback_interface)p1
+
+setup_iso_settings:
 	mount $(loopback_interface)p1 fs
 
-combineiso:
+clear_iso_settings:
 	umount fs
 	losetup -d $(loopback_interface)
 

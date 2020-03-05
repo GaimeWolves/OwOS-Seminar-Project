@@ -7,5 +7,8 @@ submake_all_%: %
 	-$(MAKE) -C $< all
 submake_setupiso_%: %
 	-$(MAKE) -C $< setupiso
+submake_setupboot_%: %
+	-$(MAKE) -C $< setupboot
 	
-setupiso: submake_setupiso_bootloader submake_setupiso_os
+setupiso: submake_setupiso_os
+setupboot: submake_setupboot_bootloader
