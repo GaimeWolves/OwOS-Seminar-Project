@@ -1,8 +1,18 @@
+;-----------------------------------------
+;	Constants
+;-----------------------------------------
 %define MBR_ADDRESS 0x0600
 %define STACK_POSITION 0xFFFF
+
+;-----------------------------------------
+;	Structs
+;-----------------------------------------
 %include "MBR.inc"
 %include "../Help_Functions/struct.inc"
 
+;-----------------------------------------
+;	Start
+;-----------------------------------------
 [bits 16]
 [org MBR_ADDRESS]
 
@@ -20,6 +30,12 @@ push dx
 ;far jump to the main programme
 jmp 0x0:main
 
+;-----------------------------------------
+;	Main
+;	Called with
+;	CS = 0
+;	DL = drive number				=> Stage1
+;-----------------------------------------
 main:
 	;set segment registers to 0
 	xor ax, ax
@@ -78,8 +94,14 @@ main:
 	;jump to vba bootsector
 	jmp 0x0:0x7c00
 
+;-----------------------------------------
+;	Include routines
+;-----------------------------------------
 %include "../Help_Functions/memory_lba.inc"
-	
+
+;-----------------------------------------
+;	MBR data
+;-----------------------------------------
 times 0x1B8-($-$$) db 0
 
 UID: times 6 db 0				; Unique Disk ID
@@ -98,4 +120,7 @@ PT4:
 
 dw 0xAA55
 
+;-----------------------------------------
+;	Variables
+;-----------------------------------------
 %include "../Help_Functions/memory_lba_var.inc"
