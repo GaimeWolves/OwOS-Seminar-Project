@@ -42,7 +42,8 @@ void* memset(void* d, int c, size_t n)
 	return d;
 }
 
-void* memmove(void* dest, const void* src, size_t n) {
+void* memmove(void* dest, const void* src, size_t n)
+{
 	const char* sp = src;
 	char* dp = dest;
 	// If src is less than dest start at end
@@ -61,7 +62,8 @@ void* memmove(void* dest, const void* src, size_t n) {
 	return dest;
 }
 
-int memcmp(const void* s1, const void* s2, size_t n) {
+int memcmp(const void* s1, const void* s2, size_t n)
+{
 	const char* c1 = s1;
 	const char* c2 = s2;
 	for (size_t i = 0; i < n; i++) {
