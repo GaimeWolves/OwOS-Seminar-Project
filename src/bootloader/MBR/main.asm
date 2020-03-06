@@ -41,7 +41,7 @@ main:
 	xor ax, ax
 	mov ds, ax
 	mov ss, ax
-    ;Now we like interrupts again
+	;Now we like interrupts again
 	sti
 
 	;Look at first partition entry

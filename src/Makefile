@@ -1,6 +1,4 @@
-ifndef BUILD_DIR
-export BUILD_DIR=$(PWD)/build
-endif
+BUILD_DIR ?= "${PWD}/build"
 
 MAKE = make
 
