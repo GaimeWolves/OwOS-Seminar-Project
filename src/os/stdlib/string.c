@@ -41,3 +41,32 @@ void* memset(void* d, int c, size_t n)
 		dp[n--] = c;
 	return d;
 }
+
+void* memmove(void* dest, const void* src, size_t n) {
+	const char* sp = src;
+	char* dp = dest;
+	// If src is less than dest start at end
+	if (src < dest) {
+		for (int i = n-1; i >= 0; i--) {
+			dp[i] = sp[i];
+		}
+	}
+	// If src is greater than dest start at beginning
+	else if (src > dest) {
+		for (size_t i = 0; i < n; i++) {
+			dp[i] = sp[i];
+		}
+	}
+	// (else) nothing to do, src and dest are the same memory regions
+	return dest;
+}
+
+int memcmp(const void* s1, const void* s2, size_t n) {
+	const char* c1 = s1;
+	const char* c2 = s2;
+	for (size_t i = 0; i < n; i++) {
+		if (c1[i] != c2[i])
+			return c1[i]-c2[i];
+	}
+	return 0;
+}
