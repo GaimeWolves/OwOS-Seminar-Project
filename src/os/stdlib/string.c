@@ -48,8 +48,8 @@ void* memmove(void* dest, const void* src, size_t n)
 	char* dp = dest;
 	// If src is less than dest start at end
 	if (src < dest) {
-		for (int i = n-1; i >= 0; i--) {
-			dp[i] = sp[i];
+		for (size_t i = n; i > 0; i--) {
+			dp[i - 1] = sp[i - 1];
 		}
 	}
 	// If src is greater than dest start at beginning
