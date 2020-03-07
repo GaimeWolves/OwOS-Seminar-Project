@@ -16,6 +16,22 @@ LoadFATEntry:
 	mov ecx, 16 ;There are 16 entries per FAT
 	div ecx ;EAX = sector offset in FAT, EDX = offset in FAT sector
 
+	;Save currently loaded FAT sector
+	mov DWORD[CurrentlyLoadedFAT], eax
+
+	;If no FAT is loaded skip the test
+	xor cx, cx
+	mov cl, BYTE[LoadedFATInitialized]
+	cmp cx, 0x00
+	je .Continue
+
+	;Test if the requested sector is loaded
+	mov ecx, DWORD[CurrentlyLoadedFAT]
+	cmp ecx, eax
+	je .AlreadyLoaded
+
+	.Continue:
+	mov BYTE[LoadedFATInitialized], 0x01
 	;Save Offset in FAT and restore drive number to cx
 	pop cx
 	push edx
@@ -34,6 +50,11 @@ LoadFATEntry:
 
 	;Restore offset in FAT sector
 	pop eax
+	ret
+
+	.AlreadyLoaded:
+	pop cx
+	mov eax, edx
 	ret
 
 ;-----------------------------------------

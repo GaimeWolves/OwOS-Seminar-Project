@@ -94,3 +94,4 @@ times 510-($-$$) db 0x0
 dw 0xAA55
 
 %include "../Help_Functions/memory_lba_var.inc"
+%include "../Help_Functions/FAT32_FAT_var.inc"

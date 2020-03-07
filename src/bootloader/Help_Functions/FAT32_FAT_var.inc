@@ -1,1 +1,2 @@
-FATMemoryOffset:			dw 0x00
+CurrentlyLoadedFAT:			dd 0x00
+LoadedFATInitialized:		db 0x00
