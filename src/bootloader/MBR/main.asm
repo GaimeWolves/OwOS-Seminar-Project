@@ -7,7 +7,7 @@
 ;-----------------------------------------
 ;	Structs
 ;-----------------------------------------
-%include "MBR.inc"
+%include "../Help_Functions/MBR.inc"
 %include "../Help_Functions/struct.inc"
 
 ;-----------------------------------------

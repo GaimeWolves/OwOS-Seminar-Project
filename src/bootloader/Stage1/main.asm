@@ -50,7 +50,14 @@ STACK_POSITION					equ 0xFFFF
 Drive_Number: 					db 0
 Partition_Table_Entry_Segment:	dw 0
 Partition_Table_Entry_Offset:	dw 0
+Partition_Table_LBA_Offset:		dd 0
 
+;-----------------------------------------
+;	Includes
+;-----------------------------------------
+%include "../Help_Functions/memory_lba.inc"
+%include "../Help_Functions/FAT32_FAT.inc"
+%include "../Help_Functions/MBR.inc"
 ;-----------------------------------------
 ;	Main
 ;	Called with
@@ -67,6 +74,10 @@ mov BYTE[Drive_Number], dl
 mov WORD[Partition_Table_Entry_Offset], si
 mov WORD[Partition_Table_Entry_Segment], ds
 
+;Get Partition LBA offset
+GetMemberDWord(ebx,si,PartitionEntry.LBA) ;LBA offset is saved in the partition entry struct in ds:si 
+mov DWORD[Partition_Table_LBA_Offset], ebx
+
 ;Set some registers to zero
 xor ax, ax
 mov ds, ax
@@ -81,3 +92,5 @@ sti
 ;Fill sector and write magic WORD
 times 510-($-$$) db 0x0
 dw 0xAA55
+
+%include "../Help_Functions/memory_lba_var.inc"

@@ -1,0 +1,1 @@
+FATMemoryOffset:			dw 0x00
