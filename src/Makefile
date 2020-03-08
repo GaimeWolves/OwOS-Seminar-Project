@@ -12,5 +12,5 @@ submake_setupiso_%: %
 submake_setupboot_%: %
 	-$(MAKE) -C $< setupboot
 	
-setupiso: submake_setupiso_os
+setupiso: submake_setupiso_os submake_setupiso_bootloader
 setupboot: submake_setupboot_bootloader
