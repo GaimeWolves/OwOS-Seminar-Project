@@ -43,6 +43,7 @@ bsFileSystem: 				DB "FAT32   "			; System Identifier String		(8 bytes)
 ;	Constants
 ;-----------------------------------------
 STACK_POSITION					equ 0xFFFF
+STAGE2_OFFSET					equ 0x9000
 
 ;-----------------------------------------
 ;	Variables (preset)
@@ -90,31 +91,38 @@ mov ds, ax
 ;Now interrupt are safe
 sti
 
+;Search Stage2 file in the root dir
 lea di, [FileName]
 call SearchFile
 
+;load to 0x0:0x9000
 xor cx, cx
 mov ds, cx
-mov si, 0x9000
+mov si, STAGE2_OFFSET
+;Load the sectors of the clusterchain
 loadLoop:
+	;Restore needed arguments for cluster loading
 	mov dl, BYTE[Drive_Number]
 	mov ebx, DWORD[Partition_Table_LBA_Offset]
-	push eax
-	call LoadCluster
-	pop eax
+	push eax ;save current cluster
+	call LoadCluster ;load current cluster
+	pop eax ;restore current cluster
+	;Restore needed arguments for getting the next cluster
 	mov ebx, DWORD[Partition_Table_LBA_Offset]
 	mov dl, BYTE[Drive_Number]
-	push si
+	push si ;save current loading offset
 	call GetNextCluster
-	pop si
-	cmp eax, 0xFFFFFF8
-	jl loadLoop
+	pop si ;restore current loading offset
+	cmp eax, 0xFFFFFF8 ;check if we finished
+	jl loadLoop ;if not continue the loop
 
+;Get back Stage1 arguments and pass them to Stage2
 mov dl, BYTE[Drive_Number]
 pop ds ;Instantly pushed after entering Stage1
 pop si ;Instantly pushed after entering Stage1
 
-jmp 0x0:0x9000
+;Jump to Stage2
+jmp 0x0:STAGE2_OFFSET
 
 
 ;Fill sector and write magic WORD
