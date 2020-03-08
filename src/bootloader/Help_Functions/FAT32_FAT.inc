@@ -1,5 +1,4 @@
 FATTempSectorOffset			equ 0x7f00
-%include "../Help_Functions/FAT32_struct.inc"
 ;-----------------------------------------
 ;	LoadFATEntry
 ;	Called with
@@ -71,5 +70,71 @@ GetNextCluster:
 	;Load the next cluster with the calculated offset
 	mov eax, [FATTempSectorOffset + EAX * 4]
 	and eax, 0x0FFFFFFF ;A cluster entry is only 28 bits long
+
+	ret
+
+;-----------------------------------------
+;	LoadCluster
+;	Called with
+;	EAX = Current Cluster
+;	EBX = Partition LBA offset
+;	 DL = DriveNumber
+;   DS:SI = pointer to memory buffer
+;	CX => Loaded sector count
+;-----------------------------------------
+LoadCluster:
+	;Save arguments
+	push ds
+	push si
+	push ds
+	push si
+	push dx
+	push eax
+	;clear ds register
+	xor cx, cx
+	mov ds, cx
+	;Calculate first data sector
+	mov eax, DWORD[0x7c00 + BPB.SectorsPerFAT]
+	xor ecx, ecx
+	mov cl, BYTE[0x7c00 + BPB.NumberOfFATS]
+	mul ecx ;eax = sectors used by FATs
+	xor ecx, ecx
+	mov cx, WORD[0x7c00 + BPB.ReservedSectors]
+	add eax, ecx ;eax = first data sector
+
+	;save to edx
+	mov ecx, eax
+	;get current cluster back
+	pop eax
+	;the first real cluster is two
+	sub eax, 0x02
+
+	;calculate sector
+	xor edx, edx
+	mov dl, BYTE[0x7c00 + BPB.SectorsPerCluster]
+	mul edx ;eax = sector offset in data sectors
+	add eax, ecx ;eax = sector offset in partition
+	add eax, ebx ;eax = sector offset in disk
+
+	;load sectors
+	pop dx	;get drive number back
+	xor cx, cx
+	mov cl, BYTE[0x7c00 + BPB.SectorsPerCluster] ;load SectorsPerCluster sectors
+	pop bx ;load to es:bx
+	pop es ;load to es:bx
+
+	call load_sector_lba
+
+	;increase si
+	mov ax, cx ;get count of loaded sectors
+	mov bx, WORD[0x7c00 + BPB.BytesPerSector] ;get byte count of a sector
+	mul bx ;calculate loaded bytes
+
+	;restore memory buffer
+	pop si
+	pop ds
+
+	add ax, si ;add si
+	mov si, ax ;save result to si
 
 	ret
