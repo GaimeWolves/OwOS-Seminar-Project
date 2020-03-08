@@ -15,22 +15,21 @@ LoadFATEntry:
 	mov ecx, 16 ;There are 16 entries per FAT
 	div ecx ;EAX = sector offset in FAT, EDX = offset in FAT sector
 
+%ifdef FAT32_FAT_LOAD_TESTING
 	;Save currently loaded FAT sector
 	mov DWORD[CurrentlyLoadedFAT], eax
 
 	;If no FAT is loaded skip the test
-	xor cx, cx
-	mov cl, BYTE[LoadedFATInitialized]
-	cmp cx, 0x00
+	cmp BYTE[LoadedFATInitialized], 0x00
 	je .Continue
 
 	;Test if the requested sector is loaded
-	mov ecx, DWORD[CurrentlyLoadedFAT]
-	cmp ecx, eax
+	cmp DWORD[CurrentlyLoadedFAT], eax
 	je .AlreadyLoaded
 
 	.Continue:
 	mov BYTE[LoadedFATInitialized], 0x01
+%endif
 	;Save Offset in FAT and restore drive number to cx
 	pop cx
 	push edx
@@ -51,10 +50,12 @@ LoadFATEntry:
 	pop eax
 	ret
 
+%ifdef FAT32_FAT_LOAD_TESTING
 	.AlreadyLoaded:
 	pop cx
 	mov eax, edx
 	ret
+%endif
 
 ;-----------------------------------------
 ;	GetNextCluster
@@ -98,7 +99,6 @@ LoadCluster:
 	xor ecx, ecx
 	mov cl, BYTE[0x7c00 + BPB.NumberOfFATS]
 	mul ecx ;eax = sectors used by FATs
-	xor ecx, ecx
 	mov cx, WORD[0x7c00 + BPB.ReservedSectors]
 	add eax, ecx ;eax = first data sector
 
@@ -134,7 +134,6 @@ LoadCluster:
 	pop si
 	pop ds
 
-	add ax, si ;add si
-	mov si, ax ;save result to si
+	add si, ax ;add si
 
 	ret

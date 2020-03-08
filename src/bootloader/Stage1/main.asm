@@ -45,19 +45,18 @@ bsFileSystem: 				DB "FAT32   "			; System Identifier String		(8 bytes)
 STACK_POSITION					equ 0xFFFF
 
 ;-----------------------------------------
-;	Variables
+;	Variables (preset)
 ;-----------------------------------------
-Drive_Number: 					db 0
-Partition_Table_Entry_Segment:	dw 0
-Partition_Table_Entry_Offset:	dw 0
-Partition_Table_LBA_Offset:		dd 0
+FileName:						db "STAGE2  SYS"
 
 ;-----------------------------------------
 ;	Includes
 ;-----------------------------------------
 %include "../Help_Functions/memory_lba.inc"
 %include "../Help_Functions/FAT32_FAT.inc"
+%include "../Help_Functions/FAT32_RootDir.inc"
 %include "../Help_Functions/MBR.inc"
+%include "../Help_Functions/FAT32_struct.inc"
 ;-----------------------------------------
 ;	Main
 ;	Called with
@@ -69,29 +68,64 @@ main:
 ;We don't want to be interrupted currently
 cli
 
+;Set stack related registers to zero
+xor ax, ax
+mov ss, ax
+
+mov sp, STACK_POSITION
+
 ;Save the variables passed by the MBR bootstrap code
 mov BYTE[Drive_Number], dl
-mov WORD[Partition_Table_Entry_Offset], si
-mov WORD[Partition_Table_Entry_Segment], ds
+push si ;Pass to Stage2
+push ds ;Pass to Stage2
 
 ;Get Partition LBA offset
 GetMemberDWord(ebx,si,PartitionEntry.LBA) ;LBA offset is saved in the partition entry struct in ds:si 
 mov DWORD[Partition_Table_LBA_Offset], ebx
 
-;Set some registers to zero
-xor ax, ax
+;set segment register to 0
 mov ds, ax
-mov ss, ax
 
-mov sp, STACK_POSITION
 
 ;Now interrupt are safe
 sti
+
+lea di, [FileName]
+call SearchFile
+
+xor cx, cx
+mov ds, cx
+mov si, 0x9000
+loadLoop:
+	mov dl, BYTE[Drive_Number]
+	mov ebx, DWORD[Partition_Table_LBA_Offset]
+	push eax
+	call LoadCluster
+	pop eax
+	mov ebx, DWORD[Partition_Table_LBA_Offset]
+	mov dl, BYTE[Drive_Number]
+	push si
+	call GetNextCluster
+	pop si
+	cmp eax, 0xFFFFFF8
+	jl loadLoop
+
+mov dl, BYTE[Drive_Number]
+pop ds ;Instantly pushed after entering Stage1
+pop si ;Instantly pushed after entering Stage1
+
+jmp 0x0:0x9000
 
 
 ;Fill sector and write magic WORD
 times 510-($-$$) db 0x0
 dw 0xAA55
+;-----------------------------------------
+;	Variables
+;-----------------------------------------
+Drive_Number: 					db 0
+Partition_Table_LBA_Offset:		dd 0
 
 %include "../Help_Functions/memory_lba_var.inc"
 %include "../Help_Functions/FAT32_FAT_var.inc"
+%include "../Help_Functions/FAT32_RootDir_var.inc"
