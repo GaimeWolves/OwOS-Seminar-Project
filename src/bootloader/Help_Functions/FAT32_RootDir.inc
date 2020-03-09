@@ -78,3 +78,40 @@ SearchFile:
 	.end:
 	cli
 	hlt
+
+;-----------------------------------------
+;	LoadClusterChain
+;	Called with
+;	EAX = First cluster
+;	EBX = Partition's LBA offset
+;	 DL = Drive number;
+;	DS:SI = Memory buffer
+;-----------------------------------------
+LoadClusterChain:
+	;Save
+	;because LoadCluster will mess up every register
+	push dx		;drive number
+	push ebx	;partition's LBA offset
+	push eax	;current cluster
+	;Load Cluster
+	call LoadCluster
+	;Restore
+	;previously saved register values
+	pop eax		;current cluster
+	pop ebx		;partition's LBA offset
+	pop dx		;drive number
+	;Save
+	;because GetNextCluster will mess up partition's LBA offset and memory buffer
+	push ebx	;partition's LBA offset
+	push ds		;memory buffer segment
+	push si		;memory buffer offset
+	;Get next cluster
+	call GetNextCluster
+	;Restore
+	pop si		;memory buffer offset
+	pop ds		;memory buffer segment
+	pop ebx		;partition's LBA offset
+	;Check if we finished
+	cmp eax, 0x0FFFFFF8
+	jl LoadClusterChain ;if not rerun with the next cluster
+	ret

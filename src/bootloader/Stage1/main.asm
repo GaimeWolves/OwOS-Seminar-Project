@@ -69,57 +69,48 @@ main:
 ;We don't want to be interrupted currently
 cli
 
-;Set stack related registers to zero
-xor ax, ax
-mov ss, ax
-
-mov sp, STACK_POSITION
+;Set stack related registers
+push 0
+pop ss					;Stack segment = 0
+mov sp, STACK_POSITION	;Stack pointer = STACK_POSITION
 
 ;Save the variables passed by the MBR bootstrap code
-mov BYTE[Drive_Number], dl
 push si ;Pass to Stage2
 push ds ;Pass to Stage2
+push dx ;Restore when loading the cluster chain and pass to Stage2
 
-;Get Partition LBA offset
+;Get partition's LBA offset
 GetMemberDWord(ebx,si,PartitionEntry.LBA) ;LBA offset is saved in the partition entry struct in ds:si 
-mov DWORD[Partition_Table_LBA_Offset], ebx
+push ebx ;Restore when loading the cluster chain
 
-;set segment register to 0
-mov ds, ax
-
+;set data segment register to 0
+push 0
+pop ds
+;code segment register already contains 0
 
 ;Now interrupt are safe
 sti
 
 ;Search Stage2 file in the root dir
-lea di, [FileName]
+mov di, FileName ;"STAGE2  SYS"
 call SearchFile
 
-;load to 0x0:0x9000
-xor cx, cx
-mov ds, cx
-mov si, STAGE2_OFFSET
+;load to 0x0:STAGE2_OFFSET
+push 0x0
+pop ds					;Segment 0
+mov si, STAGE2_OFFSET	;Offset STAGE2_OFFSET
 ;Load the sectors of the clusterchain
-loadLoop:
-	;Restore needed arguments for cluster loading
-	mov dl, BYTE[Drive_Number]
-	mov ebx, DWORD[Partition_Table_LBA_Offset]
-	push eax ;save current cluster
-	call LoadCluster ;load current cluster
-	pop eax ;restore current cluster
-	;Restore needed arguments for getting the next cluster
-	mov ebx, DWORD[Partition_Table_LBA_Offset]
-	mov dl, BYTE[Drive_Number]
-	push si ;save current loading offset
-	call GetNextCluster
-	pop si ;restore current loading offset
-	cmp eax, 0xFFFFFF8 ;check if we finished
-	jl loadLoop ;if not continue the loop
+pop ebx	;Restore partition's LBA offset
+pop dx	;Restore drive number and pass it to Stage2
+
+;Load cluster chain
+call LoadClusterChain
 
 ;Get back Stage1 arguments and pass them to Stage2
-mov dl, BYTE[Drive_Number]
-pop ds ;Instantly pushed after entering Stage1
-pop si ;Instantly pushed after entering Stage1
+;dl already set
+;ds:si = partition entry
+pop ds ;Pushed after entering Stage1
+pop si ;Pushed after entering Stage1
 
 ;Jump to Stage2
 jmp 0x0:STAGE2_OFFSET
@@ -131,9 +122,6 @@ dw 0xAA55
 ;-----------------------------------------
 ;	Variables
 ;-----------------------------------------
-Drive_Number: 					db 0
-Partition_Table_LBA_Offset:		dd 0
-
 %include "../Help_Functions/memory_lba_var.inc"
 %include "../Help_Functions/FAT32_FAT_var.inc"
 %include "../Help_Functions/FAT32_RootDir_var.inc"
