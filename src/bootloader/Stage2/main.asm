@@ -45,7 +45,7 @@ sti
 mov di, FileName ;"KERNEL  SYS"
 call SearchFile
 
-;load to 0x0:STAGE2_OFFSET
+;load to 0x0:KERNEL_LOAD_OFFSET
 push KERNEL_LOAD_SEGMENT
 pop ds					;Segment KERNEL_LOAD_SEGMENT
 mov si, KERNEL_LOAD_OFFSET	;Offset KERNEL_LOAD_OFFSET
@@ -55,8 +55,6 @@ pop dx	;Restore drive number
 
 ;Load cluster chain
 call LoadClusterChain
-
-
 
 cli
 hlt
@@ -84,6 +82,7 @@ KernelSectorCount:				dw 0
 %include "../Help_Functions/memory_lba.inc"
 %include "../Help_Functions/FAT32_FAT.inc"
 %include "../Help_Functions/FAT32_RootDir.inc"
+%include "a20.inc"
 
 ;-----------------------------------------
 [bits 32]
