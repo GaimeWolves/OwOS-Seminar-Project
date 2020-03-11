@@ -15,49 +15,63 @@
 ;	DL = drive number				=> Kernel
 ;	DS:SI = partition table entry	=> Kernel
 ;-----------------------------------------
-;We don't want to be interrupted currently
-cli
+	main:
+	;We don't want to be interrupted currently
+	cli
 
-;Set stack related registers
-push 0
-pop ss					;Stack segment = 0
-mov sp, STACK_POSITION	;Stack pointer = STACK_POSITION
+	;Set stack related registers
+	push 0
+	pop ss					;Stack segment = 0
+	mov sp, STACK_POSITION	;Stack pointer = STACK_POSITION
 
-;Save the variables passed by the Stage1 bootstrap code
-push si ;Pass to Kernel
-push ds ;Pass to Kernel
-push dx ;Pass to Kernel
-push dx ;Restore when loading the cluster chain
+	;Save the variables passed by the Stage1 bootstrap code
+	push si ;Pass to Kernel
+	push ds ;Pass to Kernel
+	push dx ;Pass to Kernel
+	push dx ;Restore when loading the cluster chain
 
-;Get partition's LBA offset
-GetMemberDWord(ebx,si,PartitionEntry.LBA) ;LBA offset is saved in the partition entry struct in ds:si 
-push ebx ;Restore when loading the cluster chain
+	;Get partition's LBA offset
+	GetMemberDWord(ebx,si,PartitionEntry.LBA) ;LBA offset is saved in the partition entry struct in ds:si 
+	push ebx ;Restore when loading the cluster chain
 
-;set data segment register to 0
-push 0
-pop ds
-;code segment register already contains 0
+	;set data segment register to 0
+	push 0
+	pop ds
+	;code segment register already contains 0
 
-;Now interrupt are safe
-sti
+	;Now interrupt are safe
+	sti
 
-;Search kernel file in the root dir
-mov di, FileName ;"KERNEL  SYS"
-call SearchFile
+	;Search kernel file in the root dir
+	mov di, FileName ;"KERNEL  SYS"
+	call SearchFile
 
-;load to 0x0:KERNEL_LOAD_OFFSET
-push KERNEL_LOAD_SEGMENT
-pop ds					;Segment KERNEL_LOAD_SEGMENT
-mov si, KERNEL_LOAD_OFFSET	;Offset KERNEL_LOAD_OFFSET
-;Load the sectors of the clusterchain
-pop ebx	;Restore partition's LBA offset
-pop dx	;Restore drive number
+	;load to 0x0:KERNEL_LOAD_OFFSET
+	push KERNEL_LOAD_SEGMENT
+	pop ds					;Segment KERNEL_LOAD_SEGMENT
+	mov si, KERNEL_LOAD_OFFSET	;Offset KERNEL_LOAD_OFFSET
+	;Load the sectors of the clusterchain
+	pop ebx	;Restore partition's LBA offset
+	pop dx	;Restore drive number
 
-;Load cluster chain
-call LoadClusterChain
+	;Load cluster chain
+	call LoadClusterChain
 
-cli
-hlt
+	;Enable A20 line
+	call a20EnabledTest
+	cmp ax, 0x01
+	je .a20enabled
+	call a20KeyboardControllerCommand
+	cmp ax, 0x01
+	je .a20enabled
+	;If activation failed: stop
+	cli
+	hlt
+	
+	.a20enabled:
+
+	cli
+	hlt
 
 ;-----------------------------------------
 ;	Constants

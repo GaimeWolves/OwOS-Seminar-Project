@@ -25,7 +25,9 @@ a20EnabledTest:
 	mov si, 0x7e0e
 
 	;Test if they are the same
-	cmp WORD[es:di], WORD[ds:si] ;not the same means already enabled
+	mov ax, WORD[es:di]
+	mov bx, WORD[ds:si]
+	cmp ax, bx ;not the same means already enabled
 	jne .a20enabled
 
 	;If they are the same it could be coincidence
@@ -40,6 +42,8 @@ a20EnabledTest:
 	pop si
 	pop es
 	pop ds
+	;Restore interrupts
+	sti
 	;return
 	ret
 
@@ -49,3 +53,13 @@ a20EnabledTest:
 	.a20enabled:
 		mov ax, 1
 		jmp .end
+
+;-----------------------------------------
+;	a20KeyboardControllerCommand
+;-----------------------------------------
+a20KeyboardControllerCommand:
+	;Try enabling the A20 line
+	;through sending 0xDD command to the keyboard controller
+	mov al, 0xdd ;Load command to al
+	out 0x64, al ;Send to 0x64 (keyboard controller command register)
+	ret
