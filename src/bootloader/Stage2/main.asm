@@ -15,7 +15,7 @@
 ;	DL = drive number				=> Kernel
 ;	DS:SI = partition table entry	=> Kernel
 ;-----------------------------------------
-	main:
+main:
 	;We don't want to be interrupted currently
 	cli
 
@@ -56,6 +56,10 @@
 
 	;Load cluster chain
 	call LoadClusterChain
+	;Reset data segment and save loaded sectors count
+	push 0x00
+	pop ds		;Set segment to 0
+	mov WORD[KernelSectorCount], cx
 
 	;Enable A20 line
 	call a20EnabledTest
@@ -69,6 +73,9 @@
 	hlt
 	
 	.a20enabled:
+		;Activate 32 bits
+		%include "32bit.inc"
+		;Should not return
 
 	cli
 	hlt
@@ -77,6 +84,7 @@
 ;	Constants
 ;-----------------------------------------
 STACK_POSITION					equ 0xFFFF
+STACK_POSITION_32				equ 0xFFFFFFFF
 KERNEL_LOAD_SEGMENT				equ 0x1000
 KERNEL_LOAD_OFFSET				equ 0x0000
 KERNEL_ADDRESS					equ 0x100000
@@ -89,6 +97,7 @@ KernelSectorCount:				dw 0
 %include "../Help_Functions/memory_lba_var.inc"
 %include "../Help_Functions/FAT32_FAT_var.inc"
 %include "../Help_Functions/FAT32_RootDir_var.inc"
+%include "32bit_var.inc"
 
 ;-----------------------------------------
 ;	Includes
@@ -101,12 +110,52 @@ KernelSectorCount:				dw 0
 ;-----------------------------------------
 [bits 32]
 ;-----------------------------------------
-;	Main32
+;	setup32
 ;	Called with
-;	CS = 0
+;	AX = address of partition entry => Kernel
 ;	DL = drive number				=> Kernel
-;	DS:SI = partition table entry	=> Kernel
+;-----------------------------------------
+setup32:
+	;Setup segment registers
+	mov bx, 0x10	;Use 2nd descriptor
+	mov ds, bx
+	mov es, bx
+	mov ss, bx
+	mov fs, bx
+	mov gs, bx
+
+	;Set stack
+	mov esp, STACK_POSITION_32
+
+	;Save address of partition entry
+	push ax
+	push dx
+
+;-----------------------------------------
+;	main32
+;	Called with
+;	AX = address of partition entry => Kernel
+;	DL = drive number				=> Kernel
 ;-----------------------------------------
 main32:
+	;Copy the kernel to its position
+	xor eax, eax
+	xor ecx, ecx
+	mov ax, WORD[KernelSectorCount]				;Get kernel sector count
+	mov cx, WORD[0x7c00 + BPB.BytesPerSector]	;Get bytes per sector
+	mul ecx										;Calculate byte size of kernel
+	mov ecx, eax								;Save it to ecx for use in rep
+
+	;Calculate load address of the kernel
+	mov esi, KERNEL_LOAD_SEGMENT				;Segment needs to be shifted up 4 times
+	shl esi, 4
+	add esi, KERNEL_LOAD_OFFSET					;Add offset
+
+	mov edi, KERNEL_ADDRESS						;Load destination address of the kernel
+
+	rep movsb									;Copy kernel's bytes
+	
+	;Setup multiboot struct
+
 	cli
 	hlt
