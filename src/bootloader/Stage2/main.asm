@@ -7,6 +7,7 @@
 %include "../Help_Functions/struct.inc"
 %include "../Help_Functions/MBR.inc"
 %include "../Help_Functions/FAT32_struct.inc"
+%include "Multiboot.inc"
 
 ;-----------------------------------------
 ;	Main
@@ -73,6 +74,14 @@ main:
 	hlt
 	
 	.a20enabled:
+		;Get memory map
+		push MMAP_SEGMENT
+		pop es
+		mov di, MMAP_OFFSET
+		call GetMMap
+		;Save size of MMap
+		sub di, MMAP_OFFSET
+		mov WORD[MMapSize], di
 		;Activate 32 bits
 		%include "32bit.inc"
 		;Should not return
@@ -84,14 +93,19 @@ main:
 ;	Constants
 ;-----------------------------------------
 STACK_POSITION					equ 0xFFFF
-STACK_POSITION_32				equ 0xFFFFFFFF
+STACK_POSITION_32				equ 0xFFFFFF
 KERNEL_LOAD_SEGMENT				equ 0x1000
 KERNEL_LOAD_OFFSET				equ 0x0000
 KERNEL_ADDRESS					equ 0x100000
+MMAP_SEGMENT					equ 0x0000
+MMAP_OFFSET						equ 0x1000
+MULTIBOOT_ADDRESS				equ 0x0900
 
 ;-----------------------------------------
 ;	Variables
 ;-----------------------------------------
+BootloaderName:					db "Molyload", 0x00
+MMapSize:						dd 0
 FileName:						db "KERNEL  SYS"
 KernelSectorCount:				dw 0
 %include "../Help_Functions/memory_lba_var.inc"
@@ -106,6 +120,7 @@ KernelSectorCount:				dw 0
 %include "../Help_Functions/FAT32_FAT.inc"
 %include "../Help_Functions/FAT32_RootDir.inc"
 %include "a20.inc"
+%include "mmap.inc"
 
 ;-----------------------------------------
 [bits 32]
@@ -127,7 +142,7 @@ setup32:
 	;Set stack
 	mov esp, STACK_POSITION_32
 
-	;Save address of partition entry
+	;Save address of partition entry and drive number
 	push ax
 	push dx
 
@@ -156,6 +171,41 @@ main32:
 	rep movsb									;Copy kernel's bytes
 	
 	;Setup multiboot struct
+	mov DWORD[MULTIBOOT_ADDRESS + Multiboot.flags], 0b1001000010			;Activate fields with flags[1,6,9]
+	
+	;MMap
+	mov eax, DWORD[MMapSize]
+	mov DWORD[MULTIBOOT_ADDRESS + Multiboot.mmap_length], eax			 	;Save MMapSize to Multiboot struct
+	
+	;Calculate MMap address
+	mov eax, MMAP_SEGMENT
+	shl eax, 4
+	add eax, MMAP_OFFSET
+	mov DWORD[MULTIBOOT_ADDRESS + Multiboot.mmap_addr], eax					;Save MMap address to Multiboot struct
+	
+	;Bootloader name
+	lea eax, [BootloaderName]
+	mov DWORD[MULTIBOOT_ADDRESS + Multiboot.boot_loader_name], eax			;Save pointer to bootloader name to Multiboot struct
+	
+	;Bootdevice
+	pop ax																			;Get drive number
+	mov BYTE[MULTIBOOT_ADDRESS + Multiboot.boot_device + boot_device.drive], al		;Save drive number to Mutiboot struct
+	;Get part1
+	pop ax																			;Get address of partition entry
+	mov cx, WORD[0x7c00 + BPB.BytesPerSector]										;Get bytes per sector
+	div cx																			;dx contains offset in sector
+	sub dx, 0x1be																	;Partition entries start at 0x1be sector offset
+	mov cx, 0x10
+	mov ax, dx
+	div cx																			;An entry is 16 bits; ax => contains partition number
+	mov BYTE[MULTIBOOT_ADDRESS + Multiboot.boot_device + boot_device.part1], al		;Set partition number in Multiboot struct
+	;We only support 1 partition
+	mov BYTE[MULTIBOOT_ADDRESS + Multiboot.boot_device + boot_device.part2], 0xFF	;Set unused to 0xFF
+	mov BYTE[MULTIBOOT_ADDRESS + Multiboot.boot_device + boot_device.part3], 0xFF	;Set unused to 0xFF
 
-	cli
-	hlt
+	;Set Register for Multiboot
+	mov eax, 0x2BADB002
+	mov ebx, MULTIBOOT_ADDRESS
+
+	;Jump to kernel
+	jmp KERNEL_ADDRESS
