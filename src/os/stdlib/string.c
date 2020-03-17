@@ -30,7 +30,7 @@ void* memcpy(void* dest, const void* src, size_t n)
 	char* dp = dest;
 	const char* sp = src;
 	for (; n > 0; n--)
-		*dp-- = *sp--;
+		*dp++ = *sp++;
 	return dest;
 }
 
@@ -38,7 +38,7 @@ void* memset(void* d, int c, size_t n)
 {
 	char* dp = d;
 	while (n > 0)
-		dp[n--] = c;
+		dp[--n] = c;
 	return d;
 }
 
