@@ -3,8 +3,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-char* uitoa(size_t num, char* buf, size_t base, bool prepend_zeros);
-char* itoa(int num, char* buf, size_t base, bool prepend_zeros);
+char *uitoa(size_t num, char * buf, size_t base, bool prepend_zeros);
+char *itoa(int num, char *buf, size_t base, bool prepend_zeros);
+char *ulltoa(unsigned long long num, char *buf, size_t base, bool prepend_zeros);
+char *lltoa(long long num, char *buf, size_t base, bool prepend_zeros);
 
 unsigned long long strtoull(const char *str, char **str_end, int base);
 unsigned long strtoul(const char *str, char **str_end, int base);

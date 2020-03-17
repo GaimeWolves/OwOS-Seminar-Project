@@ -10,14 +10,14 @@
 //				Constants
 //------------------------------------------------------------------------------------------
 
-#define CT_UPPER		0b00000001 // Großbuchstabe
-#define CT_LOWER		0b00000010 // Kleinbuchstabe
-#define CT_DIGIT		0b00000100 // Zahl
-#define CT_CNTRL		0b00001000 // Kontrollzeichen
-#define CT_PUNCT		0b00010000 // Zeichensetzung
-#define CT_WHITE		0b00100000 // Leerraum
-#define CT_HEXDG		0b01000000 // Hexadezimal
-#define CT_SPACE		0b10000000 // Leertaste
+#define CT_UPPER 0b00000001 // Upper case
+#define CT_LOWER 0b00000010 // Lower case
+#define CT_DIGIT 0b00000100 // Digit
+#define CT_CNTRL 0b00001000 // Control character
+#define CT_PUNCT 0b00010000 // Punctuation
+#define CT_WHITE 0b00100000 // Whitespace
+#define CT_HEXDG 0b01000000 // Hex digit
+#define CT_SPACE 0b10000000 // Space
 
 //------------------------------------------------------------------------------------------
 //				Types
@@ -27,6 +27,7 @@
 //				Variables
 //------------------------------------------------------------------------------------------
 
+// Lookup table holding the flags for each char
 extern uint8_t __ctype_lookup[];
 
 //------------------------------------------------------------------------------------------
@@ -48,8 +49,10 @@ extern uint8_t __ctype_lookup[];
 #define isascii(c)	((unsigned)(c) <= 0x7F)
 #define toascii(c)	((unsigned)(c) & 0x7F)
 
-// Diese Methoden müssen c mehr als einmal benutzen
-// weswegen Makrodefinitionen Bugs verursachen würden
+// These functions need to use the variable c more
+// than once, which can lead to problems if they
+// are defined as a macro
+// eg. macro(c++) => c++ gets executed multiple times
 int toupper(int c);
 int tolower(int c);
 
