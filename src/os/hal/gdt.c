@@ -73,12 +73,12 @@ int initGDT(void)
 	//Set code descriptor
 	returnCode += setGDTDescriptor(
 		0,			//This descriptor starts at address 0
-		0xFFFFFF,	//This descriptor ends at address 0xFFFFFF 
-					//=> occupies full address space (21 address lines: 2²¹ < 0xFFFFFF)
+		0xFFFFFF,	//This descriptor ends at address 0xFFFFFF
+					//=> occupies full address space
 		//Read access allowed     | Execution allowed         | Signals code/data segment| Segment uses ring level 0 | Signals valid selector
 		GDT_DESC_ACCESS_READWRITE | GDT_DESC_ACCESS_EXEC_CODE | GDT_DESC_ACCESS_CODEDATA | GDT_DESC_ACCESS_DPL_RING0 | GDT_DESC_ACCESS_MEMORY,
-		//Signals 32bits 
-		GDT_DESC_FLAGS_32BIT,
+		//Signals 32bits     | Limit is 4kiB aligned (is shifted up 8 times)
+		GDT_DESC_FLAGS_32BIT | GDT_DESC_FLAGS_GRANULARITY,
 		//2nd descriptor
 		1
 		);
@@ -89,8 +89,8 @@ int initGDT(void)
 					//=> occupies full address space (21 address lines: 2²¹ < 0xFFFFFF)
 		//Read access allowed     | Signals code/data segment| Segment uses ring level 0 | Signals valid selector
 		GDT_DESC_ACCESS_READWRITE | GDT_DESC_ACCESS_CODEDATA | GDT_DESC_ACCESS_DPL_RING0 | GDT_DESC_ACCESS_MEMORY,
-		//Signals 32bits
-		GDT_DESC_FLAGS_32BIT,
+		//Signals 32bits     | Limit is 4kiB aligned (is shifted up 8 times)
+		GDT_DESC_FLAGS_32BIT | GDT_DESC_FLAGS_GRANULARITY,
 		//3rd selector
 		2
 		);
