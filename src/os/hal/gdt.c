@@ -50,11 +50,11 @@ static int resetGDTDescriptor(size_t index)
 }
 
 //------------------------------------------------------------------------------------------
-//				Global Vars
+//				Local Vars
 //------------------------------------------------------------------------------------------
 //This array holds the gdts
 static gdtDescriptor_t gdt_descriptors[GDT_MAX_COUNT];
-//This is the struct being load trough lgdt
+//This is the struct being loaded trough lgdt
 static gdtr_t gdtr;
 
 //------------------------------------------------------------------------------------------

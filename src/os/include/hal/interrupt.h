@@ -26,6 +26,7 @@
 
 #define I86_MAX_INTERRUPTS  256
 
+#define __interrupt_handler __attribute__((interrupt))
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
@@ -41,7 +42,7 @@ typedef struct
 typedef struct
 {
     uint16_t    offset_1;   //offset bit 0..15
-    uint16_t    descriptor; //a code descriptor in GDT or LDT
+    uint16_t    selector;  //a code descriptor in GDT or LDT
     uint8_t     zero;       //set to 0
     uint8_t     type_attr;  //type and attribute
     uint16_t    offset_2;   //offset bit 16..31
@@ -55,7 +56,7 @@ typedef struct
 } __attribute__((packed)) InterruptFrame_t;
 
 
-typedef void (__attribute__((__interrupt__)) *interruptHandler_t)(InterruptFrame_t*);
+typedef void (__interrupt_handler *interruptHandler_t)(InterruptFrame_t*);
 
 //------------------------------------------------------------------------------------------
 //				Variables
@@ -67,10 +68,10 @@ typedef void (__attribute__((__interrupt__)) *interruptHandler_t)(InterruptFrame
 int initIDT(void);
 
 int setVect(uint8_t, interruptHandler_t);
-void (__attribute__((__interrupt__)) *getVect(uint8_t))(InterruptFrame_t*);
+interruptHandler_t *getVect(uint8_t);
 
 int setInterruptFlag(void);
-int resetInterruptFlag(void);
+int clearInterruptFlag(void);
 
 void genInt(uint8_t id);
 #endif _INTERRUPT_H
