@@ -32,27 +32,27 @@
 //------------------------------------------------------------------------------------------
 typedef struct
 {
-    //Length of IDT - 1
-    uint16_t limit;
+	//Length of IDT - 1
+	uint16_t limit;
 
-    //Start of the IDT
-    uint32_t base;
+	//Start of the IDT
+	uint32_t base;
 } __attribute__((packed)) IDTR_t;
 
 typedef struct
 {
-    uint16_t    offset_1;   //offset bit 0..15
-    uint16_t    selector;  //a code descriptor in GDT or LDT
-    uint8_t     zero;       //set to 0
-    uint8_t     type_attr;  //type and attribute
-    uint16_t    offset_2;   //offset bit 16..31
+	uint16_t	offset_1;  //offset bit 0..15
+	uint16_t	selector;  //a code descriptor in GDT or LDT
+	uint8_t		zero;      //set to 0
+	uint8_t		type_attr; //type and attribute
+	uint16_t	offset_2;  //offset bit 16..31
 } __attribute__((packed)) IDTDescriptor_t;
 
 typedef struct
 {
-    uint32_t eip;
-    uint32_t cs;
-    uint32_t eflags;
+	uint32_t eip;
+	uint32_t cs;
+	uint32_t eflags;
 } __attribute__((packed)) InterruptFrame_t;
 
 

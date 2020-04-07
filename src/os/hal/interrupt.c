@@ -98,11 +98,11 @@ __interrupt_handler static void standart_interrupt_request_handler15(InterruptFr
 //------------------------------------------------------------------------------------------
 static void setIDTR(void){
 	//Set fields of IDTR struct
-    idtr.base = (uint32_t)&idtDescriptors[0];
-    idtr.limit = sizeof(IDTDescriptor_t) * I86_MAX_INTERRUPTS - 1;
+	idtr.base = (uint32_t)&idtDescriptors[0];
+	idtr.limit = sizeof(IDTDescriptor_t) * I86_MAX_INTERRUPTS - 1;
 
 	//Load reference to idtr struct to the register
-    __asm__("lidt [edx]"::"d"(&idtr));
+	__asm__("lidt [edx]"::"d"(&idtr));
 }
 
 IDTDescriptor_t* setInterruptDescriptor(interruptHandler_t handler, int16_t selector, int8_t createFlags, int index)
@@ -112,20 +112,20 @@ IDTDescriptor_t* setInterruptDescriptor(interruptHandler_t handler, int16_t sele
 		return NULL; //If not return error
 
 	//Get reference to refered idt entry
-    IDTDescriptor_t* ret = &idtDescriptors[index];
+	IDTDescriptor_t* ret = &idtDescriptors[index];
 
 	//Get address of the handler method
-    uint32_t address = (uint32_t)&(*handler);
+	uint32_t address = (uint32_t)&(*handler);
 
 	//Set idt fields
-    ret->selector = selector;
-    ret->zero = 0;
-    ret->offset_1 = 0b1111111111111111 & address;
-    ret->offset_2 = address >> 16;
-    ret->type_attr = createFlags;
+	ret->selector = selector;
+	ret->zero = 0;
+	ret->offset_1 = 0b1111111111111111 & address;
+	ret->offset_2 = address >> 16;
+	ret->type_attr = createFlags;
 
 	//Return IDTDescriptor
-    return ret;
+	return ret;
 }
 
 
@@ -133,9 +133,9 @@ IDTDescriptor_t* setInterruptDescriptor(interruptHandler_t handler, int16_t sele
 //				Local Vars
 //------------------------------------------------------------------------------------------
 //This array holds the Interrupt Descriptors
-static IDTDescriptor_t  idtDescriptors[I86_MAX_INTERRUPTS];
+static IDTDescriptor_t idtDescriptors[I86_MAX_INTERRUPTS];
 //This is the struct being loaded trough lidt
-static IDTR_t           idtr;
+static IDTR_t idtr;
 
 //------------------------------------------------------------------------------------------
 //				Public Function
@@ -149,15 +149,15 @@ int initIDT(void)
 	returnCode += remapPIC();
 
 	//Clear the buffer array
-    memset(idtDescriptors, 0, I86_MAX_INTERRUPTS * sizeof(IDTDescriptor_t));
+	memset(idtDescriptors, 0, I86_MAX_INTERRUPTS * sizeof(IDTDescriptor_t));
 
 	//Set every interrupt to a standart handler
-    for(int i = 0; i < I86_MAX_INTERRUPTS; i++)
-        if(i < 32 || i > 47)
-            returnCode += setVect(i, (interruptHandler_t)standart_interrupt_handler);
+	for(int i = 0; i < I86_MAX_INTERRUPTS; i++)
+		if(i < 32 || i > 47)
+			returnCode += setVect(i, (interruptHandler_t)standart_interrupt_handler);
 	
 	//Set ISRs individualy
-    returnCode += setVect(32, (interruptHandler_t)standart_interrupt_request_handler00);
+	returnCode += setVect(32, (interruptHandler_t)standart_interrupt_request_handler00);
 	returnCode += setVect(33, (interruptHandler_t)standart_interrupt_request_handler01);
 	returnCode += setVect(34, (interruptHandler_t)standart_interrupt_request_handler02);
 	returnCode += setVect(35, (interruptHandler_t)standart_interrupt_request_handler03);
@@ -233,8 +233,8 @@ int clearInterruptFlag(void)
 void genInt(uint8_t id)
 {
 	__asm__ (
-        "mov byte ptr [genint+1], al;"
-    "genint:;"
-        "int 0;"						// above code modifies the 0 to int number to be generated
-        ::"a"(id));
+		"mov byte ptr [genint+1], al;"
+		"genint:;"
+		"int 0;"						// above code modifies the 0 to int number to be generated
+		::"a"(id));
 }
