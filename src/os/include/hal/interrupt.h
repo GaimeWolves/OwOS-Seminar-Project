@@ -68,7 +68,7 @@ typedef void (__interrupt_handler *interruptHandler_t)(InterruptFrame_t*);
 int initIDT(void);
 
 int setVect(uint8_t, interruptHandler_t);
-interruptHandler_t *getVect(uint8_t);
+interruptHandler_t getVect(uint8_t);
 
 int setInterruptFlag(void);
 int clearInterruptFlag(void);

@@ -197,7 +197,7 @@ int setVect(uint8_t index, interruptHandler_t handler)
 	return 0;
 }
 
-interruptHandler_t *getVect(uint8_t index)
+interruptHandler_t getVect(uint8_t index)
 {
 	//Create buffer for the handler address and load the pointer to the IDTDescriptor
 	uint32_t address;
@@ -207,7 +207,7 @@ interruptHandler_t *getVect(uint8_t index)
 	address = descriptor->offset_1 + (descriptor->offset_2 << 16);
 
 	//Return address as a function pointer
-	return (interruptHandler_t*)address;
+	return (interruptHandler_t)address;
 }
 
 int setInterruptFlag(void)
