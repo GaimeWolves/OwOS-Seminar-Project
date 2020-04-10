@@ -74,4 +74,4 @@ int setInterruptFlag(void);
 int clearInterruptFlag(void);
 
 void genInt(uint8_t id);
-#endif _INTERRUPT_H
+#endif

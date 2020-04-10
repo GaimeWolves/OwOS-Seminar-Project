@@ -92,6 +92,13 @@ __interrupt_handler static void standart_interrupt_request_handler15(InterruptFr
 	//Do nothing
     endOfInterrupt(15); //Send the endOfInterrupt signal to the PIC
 }
+//------------------------------------------------------------------------------------------
+//				Local Vars
+//------------------------------------------------------------------------------------------
+//This array holds the Interrupt Descriptors
+static IDTDescriptor_t idtDescriptors[I86_MAX_INTERRUPTS];
+//This is the struct being loaded trough lidt
+static IDTR_t idtr;
 
 //------------------------------------------------------------------------------------------
 //				Private Function
@@ -127,15 +134,6 @@ IDTDescriptor_t* setInterruptDescriptor(interruptHandler_t handler, int16_t sele
 	//Return IDTDescriptor
 	return ret;
 }
-
-
-//------------------------------------------------------------------------------------------
-//				Local Vars
-//------------------------------------------------------------------------------------------
-//This array holds the Interrupt Descriptors
-static IDTDescriptor_t idtDescriptors[I86_MAX_INTERRUPTS];
-//This is the struct being loaded trough lidt
-static IDTR_t idtr;
 
 //------------------------------------------------------------------------------------------
 //				Public Function
@@ -209,7 +207,7 @@ interruptHandler_t *getVect(uint8_t index)
 	address = descriptor->offset_1 + (descriptor->offset_2 << 16);
 
 	//Return address as a function pointer
-	return (interruptHandler_t)address;
+	return (interruptHandler_t*)address;
 }
 
 int setInterruptFlag(void)

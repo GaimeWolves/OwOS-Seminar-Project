@@ -22,6 +22,8 @@ int remapPIC(void)
 //----------------------------Clear-----------------------------------------
 	outb(PIC1_REG_DATA,0);
 	outb(PIC2_REG_DATA,0);
+
+	return 0;
 }
 
 int endOfInterrupt(uint16_t irq)
@@ -29,4 +31,6 @@ int endOfInterrupt(uint16_t irq)
 	if(irq >= 8)
 		outb(PIC2_REG_COMMAND,OCW2_END_OF_INTERRUPT);
 	outb(PIC1_REG_COMMAND,OCW2_END_OF_INTERRUPT);
+
+	return 0;
 }

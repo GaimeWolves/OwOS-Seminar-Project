@@ -2,6 +2,14 @@
 #include <string.h>
 
 //------------------------------------------------------------------------------------------
+//				Local Vars
+//------------------------------------------------------------------------------------------
+//This array holds the gdts
+static gdtDescriptor_t gdt_descriptors[GDT_MAX_COUNT];
+//This is the struct being loaded trough lgdt
+static gdtr_t gdtr;
+
+//------------------------------------------------------------------------------------------
 //				Private Function
 //------------------------------------------------------------------------------------------
 static inline void setGDTR(void)
@@ -50,14 +58,6 @@ static int resetGDTDescriptor(size_t index)
 }
 
 //------------------------------------------------------------------------------------------
-//				Local Vars
-//------------------------------------------------------------------------------------------
-//This array holds the gdts
-static gdtDescriptor_t gdt_descriptors[GDT_MAX_COUNT];
-//This is the struct being loaded trough lgdt
-static gdtr_t gdtr;
-
-//------------------------------------------------------------------------------------------
 //				Public Function
 //------------------------------------------------------------------------------------------
 int initGDT(void)
@@ -83,7 +83,7 @@ int initGDT(void)
 		1
 		);
 	//Set data descriptor
-	returnCode += setGDT(
+	returnCode += setGDTDescriptor(
 		0,			//This descriptor starts at address 0
 		0xFFFFFF,	//This descriptor ends at address 0xFFFFFF 
 					//=> occupies full address space (21 address lines: 2²¹ < 0xFFFFFF)
