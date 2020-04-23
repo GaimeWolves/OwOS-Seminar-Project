@@ -12,7 +12,7 @@ LoadFATEntry:
 	push dx
 	;calculate the sector offset of the cluster in the FAT
 	xor edx, edx ;Null edx
-	mov ecx, 16 ;There are 16 entries per FAT
+	mov ecx, 128 ;There are 128 = 512/4 entries per FAT
 	div ecx ;EAX = sector offset in FAT, EDX = offset in FAT sector
 
 %ifdef FAT32_FAT_LOAD_TESTING
