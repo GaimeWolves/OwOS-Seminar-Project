@@ -20,6 +20,7 @@
 //				Public Function
 //------------------------------------------------------------------------------------------
 
+void debug_set_color(char foreground, char background);
 int debug_print(const char *s);
 int debug_printf(const char *format, ...);
 

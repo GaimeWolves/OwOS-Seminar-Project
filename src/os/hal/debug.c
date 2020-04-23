@@ -55,12 +55,22 @@ static void puts(const char *s)
 // Writes the debug signature "[DEBUG]: "
 static void putsig()
 {
-	color = 0x0F; // Weiß
+	char old = color;
+	
+	color = 0x0F; // White
 	putc('[');
 	color = 0x0D; // Pink
 	puts("DEBUG");
 	color = 0x0F;
 	puts("]: ");
+
+	color = old;
+}
+
+// Sets the printed color
+void debug_set_color(char foreground, char background)
+{
+	color = (background << 4) | (foreground & 0x0F);
 }
 
 // Prints a string to the screen
