@@ -45,11 +45,15 @@ int initVidMem(void)
 
 void swapBuffer(void)
 {
+	/*
 	pixel_t internBuffer[VID_MEM_SIZE];				//Get an intern buffer for copying purpose
 
 	memcpy(internBuffer, memory, VID_MEM_SIZE);		//Get current display bytes to intern buffer
 	memcpy(memory, buffer, VID_MEM_SIZE);			//Copy current buffer to display
 	memcpy(buffer, internBuffer, VID_MEM_SIZE);		//Save previous state to buffer
+	*/
+
+	memcpy(memory, buffer, VID_MEM_SIZE);
 }
 
 pixel_t* getBufferPixel(uint8_t column, uint8_t row)
