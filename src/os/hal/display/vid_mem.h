@@ -22,8 +22,6 @@
 //------------------------------------------------------------------------------------------
 //				Variables
 //------------------------------------------------------------------------------------------
-pixel_t* memory;
-pixel_t buffer[VID_MEM_SIZE];
 
 //------------------------------------------------------------------------------------------
 //				Public Function
@@ -31,6 +29,10 @@ pixel_t buffer[VID_MEM_SIZE];
 int initVidMem();
 void swapBuffer();
 
-pixel_t* getPixel(uint8_t column, uint8_t row);
+pixel_t* getBufferPixel(uint8_t column, uint8_t row);
+int setBufferPixel(uint8_t column, uint8_t row, pixel_t pixelAttributes);
+
+pixel_t* getMemoryPixel(uint8_t column, uint8_t row);
+int setMemoryPixel(uint8_t column, uint8_t row, pixel_t pixelAttributes);
 
 #endif

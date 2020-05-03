@@ -4,6 +4,8 @@
 //------------------------------------------------------------------------------------------
 //				Local Vars
 //------------------------------------------------------------------------------------------
+pixel_t* memory;
+pixel_t buffer[VID_MEM_SIZE];
 
 //------------------------------------------------------------------------------------------
 //				Interrupt Handler
@@ -12,6 +14,12 @@
 //------------------------------------------------------------------------------------------
 //				Private Function
 //------------------------------------------------------------------------------------------
+static int testBorderValid(uint8_t column, uint8_t row)
+{
+	if(column >= MAX_COLS || row >= MAX_COLS)
+		return -1;
+	return 0;
+}
 
 //------------------------------------------------------------------------------------------
 //				Public Function
@@ -32,8 +40,40 @@ void swapBuffer(void)
 	memcpy(buffer, internBuffer, VID_MEM_SIZE);		//Save previous state to buffer
 }
 
-pixel_t* getPixel(uint8_t column, uint8_t row)
+pixel_t* getBufferPixel(uint8_t column, uint8_t row)
 {
+	if(!testBorderValid(column,row))
+		return NULL;
+
 	size_t index = row * 80 + column;
 	return &buffer[index];
+}
+
+int setBufferPixel(uint8_t column, uint8_t row, pixel_t pixelAttributes)
+{
+	if(!testBorderValid(column,row))
+		return -1;
+
+	size_t index = row * 80 + column;
+
+	buffer[index] = pixelAttributes;
+}
+
+pixel_t* getMemoryPixel(uint8_t column, uint8_t row)
+{
+	if(!testBorderValid(column,row))
+		return NULL;
+
+	size_t index = row * 80 + column;
+	return &memory[index];
+}
+
+int setMemoryPixel(uint8_t column, uint8_t row, pixel_t pixelAttributes)
+{
+	if(!testBorderValid(column,row))
+		return -1;
+
+	size_t index = row * 80 + column;
+
+	memory[index] = pixelAttributes;
 }
