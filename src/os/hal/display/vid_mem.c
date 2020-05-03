@@ -17,8 +17,8 @@ pixel_t buffer[VID_MEM_SIZE];
 static int testBorderValid(uint8_t column, uint8_t row)
 {
 	if(column >= MAX_COLS || row >= MAX_COLS)
-		return -1;
-	return 0;
+		return 0;
+	return 1;
 }
 
 static inline int internScroll(uint8_t count, void* buffer)
