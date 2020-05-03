@@ -1,6 +1,7 @@
 #include <hal/interrupt.h>
 #include <hal/gdt.h>
 #include <hal/pit.h>
+#include <hal/display.h>
 //------------------------------------------------------------------------------------------
 //				Local Vars
 //------------------------------------------------------------------------------------------
@@ -14,11 +15,12 @@
 //------------------------------------------------------------------------------------------
 int initHAL(void)
 {
-	int returnCode;
+	int returnCode = 0;
 
 	returnCode += initGDT();
 	returnCode += initIDT();
 	returnCode += initPIT();
+	returnCode += initVidMem();
 
 	return returnCode;
 }

@@ -57,6 +57,8 @@ int setBufferPixel(uint8_t column, uint8_t row, pixel_t pixelAttributes)
 	size_t index = row * 80 + column;
 
 	buffer[index] = pixelAttributes;
+
+	return 0;
 }
 
 pixel_t* getMemoryPixel(uint8_t column, uint8_t row)
@@ -76,4 +78,6 @@ int setMemoryPixel(uint8_t column, uint8_t row, pixel_t pixelAttributes)
 	size_t index = row * 80 + column;
 
 	memory[index] = pixelAttributes;
+
+	return 0;
 }
