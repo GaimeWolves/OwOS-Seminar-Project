@@ -13,7 +13,7 @@
 #define MAX_COLS        80
 #define MAX_ROWS        25
 
-#define VID_MEM_SIZE	MAX_COLS * MAX_ROWS - 1
+#define VID_MEM_SIZE	MAX_COLS * MAX_ROWS
 
 //------------------------------------------------------------------------------------------
 //				Types
