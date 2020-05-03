@@ -35,4 +35,7 @@ int setBufferPixel(uint8_t column, uint8_t row, pixel_t pixelAttributes);
 pixel_t* getMemoryPixel(uint8_t column, uint8_t row);
 int setMemoryPixel(uint8_t column, uint8_t row, pixel_t pixelAttributes);
 
+int scrollBuffer(uint8_t count);
+int scrollMemory(uint8_t count);
+
 #endif

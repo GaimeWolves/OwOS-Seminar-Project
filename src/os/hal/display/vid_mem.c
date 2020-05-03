@@ -21,6 +21,18 @@ static int testBorderValid(uint8_t column, uint8_t row)
 	return 0;
 }
 
+static inline int internScroll(uint8_t count, void* buffer)
+{
+	if(count >= MAX_ROWS)
+		return -1;
+
+	size_t pointCount = count * MAX_COLS;
+
+	memmove(buffer, buffer + (VID_MEM_SIZE - pointCount) * sizeof(pixel_t), pointCount * sizeof(pixel_t));
+
+	return 0;
+}
+
 //------------------------------------------------------------------------------------------
 //				Public Function
 //------------------------------------------------------------------------------------------
@@ -80,4 +92,14 @@ int setMemoryPixel(uint8_t column, uint8_t row, pixel_t pixelAttributes)
 	memory[index] = pixelAttributes;
 
 	return 0;
+}
+
+int scrollBuffer(uint8_t count)
+{
+	internScroll(count, buffer);
+}
+
+int scrollMemory(uint8_t count)
+{
+	internScroll(count, memory);
 }
