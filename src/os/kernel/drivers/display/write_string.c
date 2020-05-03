@@ -9,15 +9,22 @@
 //------------------------------------------------------------------------------------------
 //				Private Function
 //------------------------------------------------------------------------------------------
+static inline void setCursor(uint8_t column, uint8_t row, color_t color)
+{
+	setCursorPos(column,row);
+	
+	pixel_t* pixelData = getMemoryPixel(column,row);
+	pixelData->color = color;
+}
 
 //------------------------------------------------------------------------------------------
 //				Public Function
 //------------------------------------------------------------------------------------------
-int writeStringAt(char* string, uint8_t column, uint8_t row, color_t color)
+int writeStringAt(char* string, uint8_t column, uint8_t row, color_t color, bool cursor)
 {
 	size_t len = strlen(string);
 
-	if(row == MAX_ROWS - 1 && column + len >= MAX_COLS)
+	if(row == MAX_ROWS - 1 && column + len + (cursor ? 1 : 0) > MAX_COLS)
 		return -100;	//NOT ENOUGH SPACE EXCEPTION
 
 	uint8_t tempCol = column, tempRow = row;
@@ -38,4 +45,7 @@ int writeStringAt(char* string, uint8_t column, uint8_t row, color_t color)
 	}
 
 	swapBuffer();
+
+	if(cursor)
+		setCursor(tempCol, tempRow, color);
 }
