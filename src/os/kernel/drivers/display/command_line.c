@@ -1,4 +1,6 @@
-#include "write_string.h"
+#include "command_line.h"
+
+#include "cursor_intern.h"
 
 #include <string.h>
 
@@ -9,13 +11,6 @@
 //------------------------------------------------------------------------------------------
 //				Private Function
 //------------------------------------------------------------------------------------------
-static inline void setCursor(uint8_t column, uint8_t row, color_t color)
-{
-	setCursorPos(column,row);
-	
-	pixel_t* pixelData = getMemoryPixel(column,row);
-	pixelData->color = color;
-}
 
 //------------------------------------------------------------------------------------------
 //				Public Function
@@ -48,4 +43,6 @@ int writeStringAt(char* string, uint8_t column, uint8_t row, color_t color, bool
 
 	if(cursor)
 		setCursor(tempCol, tempRow, color);
+
+	return 0;
 }

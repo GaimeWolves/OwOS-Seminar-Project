@@ -1,10 +1,9 @@
-#ifndef _WRITE_STRING_H
-#define _WRITE_STRING_H
+#ifndef _CELLS_H
+#define _CELLS_H
 //------------------------------------------------------------------------------------------
 //				Includes
 //------------------------------------------------------------------------------------------
 #include <hal/display.h>
-#include <stdbool.h>
 //------------------------------------------------------------------------------------------
 //				Constants
 //------------------------------------------------------------------------------------------
@@ -20,7 +19,15 @@
 //------------------------------------------------------------------------------------------
 //				Public Function
 //------------------------------------------------------------------------------------------
-int writeStringAt(char* string, uint8_t column, uint8_t row, color_t color, bool cursor);
+void clrscr();
+void set_color(char fg, char bg);
 
+int move(int x, int y);
+
+int mvaddchr(int x, int y, char character);
+int mvaddstr(int x, int y, char* str);
+int mvprintw(int x, int y, char* fmt, ...);
+
+void refresh();
 
 #endif
