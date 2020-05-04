@@ -20,6 +20,17 @@ static void updateColor()
 		for(uint8_t y = 0; y < MAX_ROWS; y++)
 			getBufferPixel(x, y)->color = internColor;
 }
+static void setCursorNext(int x, int y)
+{
+	x++;
+	if(x == MAX_COLS)
+	{
+		x = 0;
+		y++;
+	}
+
+	move(x, y);
+}
 
 //------------------------------------------------------------------------------------------
 //				Public Function
@@ -56,6 +67,8 @@ int mvaddchr(int x, int y, char character)
 		return -3;
 
 	getBufferPixel((uint8_t)x, (uint8_t)y)->character = character;
+
+	setCursorNext(x, y);
 }
 
 int mvaddstr(int x, int y, char* str)
@@ -77,6 +90,8 @@ int mvaddstr(int x, int y, char* str)
 			y++;
 		}
 	}
+
+	move(x, y);
 }
 
 int mvprintw(int x, int y, char* fmt, ...)
