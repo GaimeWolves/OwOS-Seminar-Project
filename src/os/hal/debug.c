@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #define VIDMEM 0xB8000 // Address of VGA-Memory
 
@@ -14,6 +15,7 @@
 
 static uint8_t xPos = 0;  // Position in row
 static char color = 0x0F; // Currently used color
+static bool outputOn = true;
 
 static void scrollText();
 static void putc(const char c);
@@ -67,6 +69,11 @@ static void putsig()
 	color = old;
 }
 
+void toggle_debug_output(bool on)
+{
+	outputOn = on;
+}
+
 // Sets the printed color
 void debug_set_color(char foreground, char background)
 {
@@ -76,6 +83,9 @@ void debug_set_color(char foreground, char background)
 // Prints a string to the screen
 int debug_print(const char *s)
 {
+	if (!outputOn)
+		return 0;
+
 	if(!s)
 		return -1;
 
@@ -94,6 +104,9 @@ int debug_print(const char *s)
 // Uses printf to print a formated string to the screen
 int debug_printf(const char *format, ...)
 {
+	if (!outputOn)
+		return 0;
+	
 	if (!format)
 		return -1;
 
