@@ -1,6 +1,8 @@
 #include <string.h>
 #include <keyboard.h>
 #include "bitmap.h"
+
+// Normal keys
 const char keys_nomod[] = {
 	0, 0, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 0xE1, '\'', 0, 0,          // 0x00 - 0x0F
 	'q', 'w', 'e', 'r', 't', 'z', 'u', 'i', 'o', 'p', 0x81, '+', 0, 0, 'a', 's',       // 0x10 - 0x1F
@@ -10,6 +12,7 @@ const char keys_nomod[] = {
 	'2', '3', '0', ',', 0, 0, '<', 0, 0                                                // 0x50 - 0x58
 };
 
+// Keys with shift modifier
 const char keys_shift[] = {
 	0, 0, '!', '\"', 0, '$', '%', '&', '/', '(', ')', '=', '?', '`', 0, 0,             // 0x00 - 0x0F
 	'Q', 'W', 'E', 'R', 'T', 'Z', 'U', 'I', 'O', 'P', 0x9A, '*', 0, 0, 'A', 'S',       // 0x10 - 0x1F
@@ -19,6 +22,7 @@ const char keys_shift[] = {
 	0, 0, 0, 0, 0, 0, '>', 0, 0                                                        // 0x50 - 0x58
 };
 
+// Keys with control and alt modifier
 const char keys_ctrl_alt[] = {
 	0, 0, 0, 0xFD, 0, 0xAC, 0xAB, 0xAA, '{', '[', ']', '}', '\\', 0, 0, 0,             // 0x00 - 0x0F
 	'@', 0, 0, 0x9E, 0, 0, 0, 0, 0, 0, 0, '~', 0, 0, 0x91, 0,                          // 0x10 - 0x1F
@@ -33,23 +37,31 @@ uint32_t previous[3];
 bool _capslock = false;
 char* c;
 
+// True if keycode was pressed down last
 bool kbWasPressed(uint8_t keycode)
 {
 	return getBit(keycode, current) && !getBit(keycode, previous);
 }
 
-bool shift() {
+// True if shift is being held down
+bool shift()
+{
 	return _capslock || getBit(KEY_LSHIFT, current) || getBit(KEY_RSHIFT, current);
 }
 
-bool control() {
+// True if control is being held down
+bool control()
+{
 	return getBit(KEY_LCTRL, current);
 }
 
-bool alt() {
+// True if alt is being held down
+bool alt()
+{
 	return getBit(KEY_LALT, current);
 }
 
+// Handles the keycode from IRQ 1
 void kbHandleKeycode(uint8_t keycode)
 {
 	if (keycode == 0xE0 || keycode == 0xE1)
@@ -71,6 +83,7 @@ void kbHandleKeycode(uint8_t keycode)
 					setBit(keycode, current);
 					break;
 			}
+			// Write to c if registered by getc
 			if (c) {
 				char ch;
 				if ((shift())) {
@@ -80,6 +93,7 @@ void kbHandleKeycode(uint8_t keycode)
 				} else {
 					ch = keys_nomod[keycode];
 				}
+				// Only write if it's a valid character
 				if (ch != 0) {
 					*c = ch;
 					c = NULL;
@@ -90,6 +104,8 @@ void kbHandleKeycode(uint8_t keycode)
 	// TODO Handle errors
 }
 
-void getc(char* x) {
+// Register to get the next key character written to c
+void getc(char* x)
+{
 	c = x;
 }

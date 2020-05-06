@@ -27,20 +27,20 @@ void kbCtrlWaitFull()
 }
 
 // Send command to keyboard controller
-void kbCtrlSendCmd (uint8_t cmd)
+void kbCtrlSendCmd(uint8_t cmd)
 {
 	kbCtrlWaitEmpty(); 
 	outb(KB_CTRL_CMD_REG, cmd);
 }
 
 // Enable keyboard
-void kbEnable ()
+void kbEnable()
 {
 	kbCtrlSendCmd(KB_CTRL_CMD_ENABLE);
 }
 
 // Disable keyboard
-void kbDisable ()
+void kbDisable()
 {
 	kbCtrlSendCmd(KB_CTRL_CMD_DISABLE);
 }
