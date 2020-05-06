@@ -79,3 +79,4 @@
 #define KEY_F12           0x58
 #include <stdint.h>
 void kbHandleKeycode(uint8_t keycode);
+void getc(char* x);
