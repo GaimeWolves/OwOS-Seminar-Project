@@ -11,7 +11,7 @@ uint8_t kbCtrlReadStatus()
 // Returns true if keyboard controller buffer is full
 bool kbCtrlBufFull()
 {
-	return kbCtrlReadStatus() & KB_CTRL_STATS_MASK_IN_BUF;
+	return kbCtrlReadStatus() & KB_CTRL_STATS_MASK_OUT_BUF;
 }
 
 // Wait for keyboard controller buffer to be empty
