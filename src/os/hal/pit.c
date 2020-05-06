@@ -18,7 +18,7 @@ static size_t subhandler_count;
 __interrupt_handler static void pit_handler(InterruptFrame_t* frame)
 {
 	//Test every subhandler
-	for(size_t i = 0; i < MAX_SUBHANDLER; i++)
+	for(size_t i = 0; i < subhandler_count; i++)
 	{
 		//If counter switches from 1 to 0 this time
 		if(subhandler_current_counter[i] == 1)
