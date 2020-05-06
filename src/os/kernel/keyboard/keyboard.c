@@ -1,4 +1,4 @@
-#include <stdint.h>
+#include <string.h>
 #include <keyboard.h>
 #include "bitmap.h"
 const char keys_nomod[] = {
@@ -28,12 +28,32 @@ const char keys_ctrl_alt[] = {
 	'2', '3', '0', ',', 0, 0, '|'														//0x50 - 0x56
 };
 
-typedef struct {
-	uint32_t keys[3];
-	uint8_t modifiers;
-} kbState;
+uint32_t current[3];
+uint32_t previous[3];
+bool _capslock = false;
 
-kbState current;
-kbState prveious;
-void kbHandleKeycode(uint8_t keycode) {
+void kbHandleKeycode(uint8_t keycode)
+{
+	if (keycode == 0xE0 || keycode == 0xE1)
+		// TODO Handle Special extended keycodes
+		return;
+	else {
+		memcpy(previous, current, sizeof(current)/sizeof(current[0]));
+		// Bit 7 set == Break code
+		if (keycode & 0x80) {
+			// Unset break code bit
+			keycode -= 0x80;
+			clearBit(keycode, current);
+		}
+		else {
+			switch (keycode) {
+				case KEY_CAPSLOCK:
+					_capslock = !_capslock;
+				default:
+					setBit(keycode, current);
+					break;
+			}
+		}
+	}
+	// TODO Handle errors
 }

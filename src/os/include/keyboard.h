@@ -77,3 +77,5 @@
 #define KEY_KP_DECIMAL    0x53             //keypad delete key
 #define KEY_F11           0x57
 #define KEY_F12           0x58
+#include <stdint.h>
+void kbHandleKeycode(uint8_t keycode);
