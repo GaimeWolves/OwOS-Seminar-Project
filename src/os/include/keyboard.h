@@ -53,7 +53,7 @@
 #define KEY_MINUS         0x35
 #define KEY_RSHIFT        0x36
 #define KEY_KP_ASTERISK   0x37
-#define KEY_RALT          0x38
+#define KEY_LALT          0x38
 #define KEY_SPACE         0x39
 #define KEY_CAPSLOCK      0x3a
 #define KEY_F1            0x3b
