@@ -6,6 +6,8 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include <memory/heap.h>
+
 //------------------------------------------------------------------------------------------
 //				Local Vars
 //------------------------------------------------------------------------------------------
@@ -97,14 +99,19 @@ int mvaddstr(int x, int y, char* str)
 int mvprintw(int x, int y, char* fmt, ...)
 {
 	size_t len = strlen(fmt);
-	char buffer[1000];		//FIXME: USE HEAP!!!!!
+
+	char* buffer = (char*)kmalloc(len + 100);
 
 	va_list va;
 	va_start(va, fmt);
 
 	vsnprintf(buffer, len + 100, fmt, va);
 
-	return mvaddstr(x, y, buffer);
+	int returnCode = mvaddstr(x, y, buffer);
+
+	kfree(buffer);
+
+	return returnCode;
 }
 
 void refresh()
