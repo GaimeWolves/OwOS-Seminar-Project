@@ -60,7 +60,7 @@ struct kbError kbErrors[] = {
 const char* kbErrorToString(uint8_t code)
 {
 	// O(n) but insignificant
-	for (unsigned i = 0; i < 0; i++) {
+	for (unsigned i = 0; i < sizeof(kbErrors)/sizeof(kbErrors[0]); i++) {
 		if (code == kbErrors[i].code)
 			return kbErrors[i].msg;
 	}
