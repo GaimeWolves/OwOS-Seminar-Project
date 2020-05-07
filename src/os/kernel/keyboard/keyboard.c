@@ -113,13 +113,14 @@ uint8_t kbGetLastError()
 uint8_t kbHandleKeycode(uint8_t keycode)
 {
 	// Ignore the break code bit
-	switch (keycode | ~0x80) {
+	uint8_t err = keycode & ~0x80;
+	switch (err) {
 		case KB_ERR_BAT_FAILED:
 		case KB_ERR_DIAG_FAILED:
 		case KB_ERR_RESEND_CMD:
 		case KB_ERR_BUF_OVERRUN:
-			_lasterror = keycode;
-			return keycode;
+			_lasterror = err;
+			return err;
 	}
 	// TODO Handle Special extended keycodes
 	if (keycode == 0xE0 || keycode == 0xE1)
