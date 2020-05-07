@@ -43,6 +43,18 @@ bool kbWasPressed(uint8_t keycode)
 	return getBit(keycode, current) && !getBit(keycode, previous);
 }
 
+// True if keycode was released last
+bool kbWasReleased(uint8_t keycode)
+{
+	return !getBit(keycode, current) && getBit(keycode, previous);
+}
+
+// True if keycode is currently being pressed down
+bool kbIsPressed(uint8_t keycode)
+{
+	return getBit(keycode, current);
+}
+
 // True if shift is being held down
 bool shift()
 {

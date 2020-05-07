@@ -78,5 +78,9 @@
 #define KEY_F11           0x57
 #define KEY_F12           0x58
 #include <stdint.h>
+#include <stdbool.h>
 void kbHandleKeycode(uint8_t keycode);
 void getc(char* x);
+bool kbWasPressed(uint8_t keycode);
+bool kbWasReleased(uint8_t keycode);
+bool kbIsPressed(uint8_t keycode);
