@@ -1,3 +1,4 @@
+#pragma once
 #define KEY_ESCAPE        1
 #define KEY_1             2
 #define KEY_2             3

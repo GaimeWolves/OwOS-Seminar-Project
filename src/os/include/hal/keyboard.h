@@ -1,3 +1,4 @@
+#pragma once
 #define KB_CTRL_STATS_MASK_OUT_BUF      0b00000001
 #define KB_CTRL_STATS_MASK_IN_BUF       0b00000010
 #define KB_CTRL_STATS_MASK_SYSTEM       0b00000100
