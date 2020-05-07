@@ -85,3 +85,5 @@ void getc(char* x);
 bool kbWasPressed(uint8_t keycode);
 bool kbWasReleased(uint8_t keycode);
 bool kbIsPressed(uint8_t keycode);
+uint8_t kbGetLastError();
+const char* kbErrorToString(uint8_t code);
