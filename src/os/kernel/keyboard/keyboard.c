@@ -1,5 +1,6 @@
 #include <string.h>
 #include <keyboard.h>
+#include <hal/keyboard.h>
 #include "bitmap.h"
 
 // Normal keys
@@ -35,6 +36,8 @@ const char keys_ctrl_alt[] = {
 uint32_t current[3];
 uint32_t previous[3];
 bool _capslock = false;
+bool _numlock = false;
+bool _scrolllock = false;
 char* c;
 
 // True if keycode was pressed down last
@@ -87,13 +90,26 @@ void kbHandleKeycode(uint8_t keycode)
 		keycode -= 0x80;
 		clearBit(keycode, current);
 	} else {
+		bool updateLEDs = true;
 		switch (keycode) {
 			case KEY_CAPSLOCK:
 				_capslock = !_capslock;
+				break;
+			case KEY_KP_NUMLOCK:
+				_numlock = !_numlock;
+				break;
+			case KEY_SCROLLLOCK:
+				_scrolllock = !_scrolllock;
+				break;
 			default:
-				setBit(keycode, current);
+				updateLEDs = false;
 				break;
 		}
+		if (updateLEDs)
+			kbSetLEDs(_scrolllock, _numlock, _capslock);
+
+		setBit(keycode, current);
+
 		// Write to c if registered by getc
 		if (c) {
 			char ch;

@@ -56,3 +56,5 @@ void kbEnable();
 void kbDisable();
 uint8_t kbEncReadBuf();
 bool kbSelfTest();
+void kbEncSendCmd(uint8_t cmd);
+void kbSetLEDs(bool scrolllock, bool numlock, bool caps);

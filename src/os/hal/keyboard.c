@@ -61,3 +61,19 @@ bool kbSelfTest()
 	// Test passed if output buffer is 0x55
 	return (kbEncReadBuf() == 0x55) ? true : false;
 }
+
+// Send command to keyboard encoder
+void kbEncSendCmd(uint8_t cmd)
+{
+	kbCtrlWaitEmpty();
+	outb(KB_ENC_CMD_REG, cmd);
+}
+
+// Set the LEDs on the keyboard
+void kbSetLEDs(bool scrolllock, bool numlock, bool caps)
+{
+	uint8_t data = 0;
+	data |= scrolllock | numlock<<1 | caps<<2;
+	kbEncSendCmd(KB_ENC_CMD_SET_LED);
+	kbEncSendCmd(data);
+}
