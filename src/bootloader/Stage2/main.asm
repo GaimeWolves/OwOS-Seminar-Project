@@ -74,6 +74,14 @@ main:
 	hlt
 	
 	.a20enabled:
+		;Get lower memory size
+		int 0x12
+		jc error
+		mov WORD[LowerMem], ax
+		;Get upper memory size
+		call GetUpperMem
+		mov DWORD[UpperMem], eax
+
 		;Get memory map
 		push MMAP_SEGMENT
 		pop es
@@ -86,8 +94,9 @@ main:
 		%include "32bit.inc"
 		;Should not return
 
-	cli
-	hlt
+	error:
+		cli
+		hlt
 
 ;-----------------------------------------
 ;	Constants
@@ -108,6 +117,8 @@ BootloaderName:					db "Molyload", 0x00
 MMapSize:						dd 0
 FileName:						db "KERNEL  SYS"
 KernelSectorCount:				dw 0
+UpperMem:						dd 0
+LowerMem:						dd 0
 %include "../Help_Functions/memory_lba_var.inc"
 %include "../Help_Functions/FAT32_FAT_var.inc"
 %include "../Help_Functions/FAT32_RootDir_var.inc"
@@ -121,6 +132,7 @@ KernelSectorCount:				dw 0
 %include "../Help_Functions/FAT32_RootDir.inc"
 %include "a20.inc"
 %include "mmap.inc"
+%include "upper_mem.inc"
 
 ;-----------------------------------------
 [bits 32]
@@ -171,8 +183,14 @@ main32:
 	rep movsb									;Copy kernel's bytes
 	
 	;Setup multiboot struct
-	mov DWORD[MULTIBOOT_ADDRESS + Multiboot.flags], 0b1001000010			;Activate fields with flags[1,6,9]
-	
+	mov DWORD[MULTIBOOT_ADDRESS + Multiboot.flags], 0b1001000011			;Activate fields with flags[0,1,6,9]
+
+	;Upper Mem & Lower Mem
+	mov eax, DWORD[LowerMem]
+	mov DWORD[MULTIBOOT_ADDRESS + Multiboot.mem_lower], eax					;Save lower memory size to Multiboot struct
+	mov eax, DWORD[UpperMem]
+	mov DWORD[MULTIBOOT_ADDRESS + Multiboot.mem_upper], eax					;Save upper memory size to Multiboot struct
+
 	;MMap
 	mov eax, DWORD[MMapSize]
 	mov DWORD[MULTIBOOT_ADDRESS + Multiboot.mmap_length], eax			 	;Save MMapSize to Multiboot struct
