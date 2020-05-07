@@ -19,6 +19,13 @@
 #define ATA_DRIVE_2 0x02
 #define ATA_DRIVE_3 0x03
 
+#define ATA_MAX_DRIVES 4
+
+// Drive type number
+#define ATA_DRIVE_TYPE_FIXED     0x01
+#define ATA_DRIVE_TYPE_REMOVABLE 0x02
+#define ATA_DRIVE_TYPE_UNKNOWN   0x03
+
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
@@ -41,8 +48,7 @@ typedef struct drive_t
 
 int initATA();
 
-int ataReadOne(void* buf, uint64_t lba, uint8_t drive);
-int ataRead(void* buf, uint64_t lba, uint64_t sectors, uint8_t drive);
+int ataRead(void* buf, uint64_t lba, uint32_t sectors, uint8_t drive);
 
 drive_t getDrive(uint8_t drive);
 
