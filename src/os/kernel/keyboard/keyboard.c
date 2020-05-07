@@ -76,40 +76,38 @@ bool alt()
 // Handles the keycode from IRQ 1
 void kbHandleKeycode(uint8_t keycode)
 {
+	// TODO Handle Special extended keycodes
 	if (keycode == 0xE0 || keycode == 0xE1)
-		// TODO Handle Special extended keycodes
 		return;
-	else {
-		memcpy(previous, current, sizeof(current)/sizeof(current[0]));
-		// Bit 7 set == Break code
-		if (keycode & 0x80) {
-			// Unset break code bit
-			keycode -= 0x80;
-			clearBit(keycode, current);
+
+	memcpy(previous, current, sizeof(current)/sizeof(current[0]));
+	// Bit 7 set == Break code
+	if (keycode & 0x80) {
+		// Unset break code bit
+		keycode -= 0x80;
+		clearBit(keycode, current);
+	} else {
+		switch (keycode) {
+			case KEY_CAPSLOCK:
+				_capslock = !_capslock;
+			default:
+				setBit(keycode, current);
+				break;
 		}
-		else {
-			switch (keycode) {
-				case KEY_CAPSLOCK:
-					_capslock = !_capslock;
-				default:
-					setBit(keycode, current);
-					break;
+		// Write to c if registered by getc
+		if (c) {
+			char ch;
+			if ((shift())) {
+				ch = keys_shift[keycode];
+			} else if (control() && alt()) {
+				ch = keys_ctrl_alt[keycode];
+			} else {
+				ch = keys_nomod[keycode];
 			}
-			// Write to c if registered by getc
-			if (c) {
-				char ch;
-				if ((shift())) {
-					ch = keys_shift[keycode];
-				} else if (control() && alt()) {
-					ch = keys_ctrl_alt[keycode];
-				} else {
-					ch = keys_nomod[keycode];
-				}
-				// Only write if it's a valid character
-				if (ch != 0) {
-					*c = ch;
-					c = NULL;
-				}
+			// Only write if it's a valid character
+			if (ch != 0) {
+				*c = ch;
+				c = NULL;
 			}
 		}
 	}
