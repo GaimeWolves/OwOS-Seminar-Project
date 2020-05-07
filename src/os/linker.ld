@@ -3,6 +3,7 @@ ENTRY(entry)
 SECTIONS
 {
 	. = 0x100000;
+	_start = .;
 
 	.text BLOCK(4K) : ALIGN(4K)
 	{
