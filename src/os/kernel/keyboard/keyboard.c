@@ -38,6 +38,7 @@ uint32_t previous[3];
 bool _capslock = false;
 bool _numlock = false;
 bool _scrolllock = false;
+uint8_t _lasterror = 1; // 0 is KB_ERR_BUF_OVERRUN while 1 is not a defined error
 char* c;
 
 // True if keycode was pressed down last
@@ -76,12 +77,27 @@ bool alt()
 	return getBit(KEY_LALT, current);
 }
 
-// Handles the keycode from IRQ 1
-void kbHandleKeycode(uint8_t keycode)
+// Returns the errorcode of the last error
+uint8_t kbGetLastError()
 {
+	return _lasterror;
+}
+
+// Handles the keycode from IRQ 1, returns 1 (!) on success and the error code on error
+uint8_t kbHandleKeycode(uint8_t keycode)
+{
+	// Ignore the break code bit
+	switch (keycode | ~0x80) {
+		case KB_ERR_BAT_FAILED:
+		case KB_ERR_DIAG_FAILED:
+		case KB_ERR_RESEND_CMD:
+		case KB_ERR_BUF_OVERRUN:
+			_lasterror = keycode;
+			return keycode;
+	}
 	// TODO Handle Special extended keycodes
 	if (keycode == 0xE0 || keycode == 0xE1)
-		return;
+		return 1;
 
 	memcpy(previous, current, sizeof(current)/sizeof(current[0]));
 	// Bit 7 set == Break code
@@ -127,7 +143,7 @@ void kbHandleKeycode(uint8_t keycode)
 			}
 		}
 	}
-	// TODO Handle errors
+	return 1;
 }
 
 // Register to get the next key character written to c

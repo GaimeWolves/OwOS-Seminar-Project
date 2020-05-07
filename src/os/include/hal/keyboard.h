@@ -46,6 +46,16 @@
 #define KB_CTRL_CMD_MOUSE_PORT_TEST     0xA9
 #define KB_CTRL_CMD_MOUSE_WRITE         0xD4
 
+#define KB_ERR_BUF_OVERRUN              0
+#define KB_ERR_ID_RET                   0x83AB
+#define KB_ERR_BAT                      0xAA    // Can also be LShift make code
+#define KB_ERR_ECHO_RET                 0xEE
+#define KB_ERR_ACK                      0xFA
+#define KB_ERR_BAT_FAILED               0xFC
+#define KB_ERR_DIAG_FAILED              0xFD
+#define KB_ERR_RESEND_CMD               0xFE
+#define KB_ERR_KEY                      0xFF
+
 #include <stdint.h>
 #include <stdbool.h>
 uint8_t kbCtrlReadStatus();
