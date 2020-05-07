@@ -63,17 +63,47 @@ int move(int x, int y)
 
 int mvaddchr(int x, int y, char character)
 {
+	addchr(x, y, character);
+
+	setCursorNext(x, y);
+}
+int mvaddstr(int x, int y, char* str)
+{
+	addstr(x, y, str);
+
+	size_t len = strlen(str);
+	int cursorX = (x + len) % MAX_COLS;
+	int cursorY = y + (x + len) / MAX_COLS; 
+	move(cursorX, cursorY);
+}
+int mvprintw(int x, int y, char* fmt, ...)
+{
+	size_t len = strlen(fmt);
+
+	char* buffer = (char*)kmalloc(len + 100);
+
+	va_list va;
+	va_start(va, fmt);
+
+	vsnprintf(buffer, len + 100, fmt, va);
+
+	int returnCode = mvaddstr(x, y, buffer);
+
+	kfree(buffer);
+
+	return returnCode;
+}
+
+int addchr(int x, int y, char character)
+{
 	if(x < 0 || x >= MAX_COLS)
 		return -2;
 	if(y < 0 || y >= MAX_ROWS)
 		return -3;
 
 	getBufferPixel((uint8_t)x, (uint8_t)y)->character = character;
-
-	setCursorNext(x, y);
 }
-
-int mvaddstr(int x, int y, char* str)
+int addstr(int x, int y, char* str)
 {
 	if(x < 0 || x >= MAX_COLS)
 		return -2;
@@ -92,11 +122,8 @@ int mvaddstr(int x, int y, char* str)
 			y++;
 		}
 	}
-
-	move(x, y);
 }
-
-int mvprintw(int x, int y, char* fmt, ...)
+int printw(int x, int y, char* fmt, ...)
 {
 	size_t len = strlen(fmt);
 
@@ -107,7 +134,7 @@ int mvprintw(int x, int y, char* fmt, ...)
 
 	vsnprintf(buffer, len + 100, fmt, va);
 
-	int returnCode = mvaddstr(x, y, buffer);
+	int returnCode = addstr(x, y, buffer);
 
 	kfree(buffer);
 

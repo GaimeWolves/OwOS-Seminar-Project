@@ -28,6 +28,10 @@ int mvaddchr(int x, int y, char character);
 int mvaddstr(int x, int y, char* str);
 int mvprintw(int x, int y, char* fmt, ...);
 
+int addchr(int x, int y, char character);
+int addstr(int x, int y, char* str);
+int printw(int x, int y, char* fmt, ...);
+
 void refresh();
 
 #endif
