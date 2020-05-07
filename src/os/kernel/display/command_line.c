@@ -1,4 +1,4 @@
-#include "command_line.h"
+#include <display/command_line.h>
 
 #include "cursor_intern.h"
 

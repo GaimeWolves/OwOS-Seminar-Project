@@ -1,4 +1,4 @@
-#include "cells.h"
+#include <display/cells.h>
 
 #include "cursor_intern.h"
 
