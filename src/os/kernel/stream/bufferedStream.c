@@ -4,6 +4,7 @@
 //				Includes
 //------------------------------------------------------------------------------------------
 #include <memory/heap.h>
+#include <string.h>
 
 //------------------------------------------------------------------------------------------
 //				Constants
@@ -51,7 +52,32 @@ static void writeBufferedStream(characterStream_t* stream, char character)
 	}
 	else
 	{
-		//FIXME: EXCEPTION HANDLING
+		//Get new buffer with more size
+		char* newBuffer = (char*)kmalloc(s->bufferSize * 2);
+
+		//Copy data
+		if(s->bufferBase != 0)
+		{
+			size_t toEnd = s->bufferSize - s->bufferBase;
+			size_t fromStart = s->count - toEnd;
+			memcpy(newBuffer, (s->buffer + s->bufferBase), toEnd);
+			memcpy(newBuffer + toEnd, s->buffer, fromStart);
+		}
+		else
+		{
+			memcpy(newBuffer, s->buffer + s->bufferBase, s->count);
+		}
+
+		//Free old buffer
+		kfree(s->buffer);
+		//Set vars to new buffer
+		s->buffer = newBuffer;
+		s->bufferSize *= 2;
+		s->bufferBase = 0;
+
+		//Add character
+		s->buffer[s->count] = character;
+		s->count++;
 	}
 }
 static char readBufferedStream(characterStream_t* stream)
