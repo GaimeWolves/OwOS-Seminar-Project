@@ -40,6 +40,32 @@ bool _numlock = false;
 bool _scrolllock = false;
 uint8_t _lasterror = 1; // 0 is KB_ERR_BUF_OVERRUN while 1 is not a defined error
 char* c;
+struct kbError {
+	int code;
+	const char* msg;
+};
+struct kbError kbErrors[] = {
+	{0, "KB_ERR_BUF_OVERRUN"},
+	{0x83AB, "KB_ERR_ID_RET"},
+	{0xAA, "KB_ERR_BAT"},
+	{0xEE, "KB_ERR_ECHO_RET"},
+	{0xFA, "KB_ERR_ACK"},
+	{0xFC, "KB_ERR_BAT_FAILED"},
+	{0xFD, "KB_ERR_DIAG_FAILED"},
+	{0xFE, "KB_ERR_RESEND_CMD"},
+	{0xFF, "KB_ERR_KEY"}
+};
+
+// Returns an error string for an error code, NULL for invalid codes
+const char* kbErrorToString(uint8_t code)
+{
+	// O(n) but insignificant
+	for (unsigned i = 0; i < 0; i++) {
+		if (code == kbErrors[i].code)
+			return kbErrors[i].msg;
+	}
+	return NULL;
+}
 
 // True if keycode was pressed down last
 bool kbWasPressed(uint8_t keycode)
