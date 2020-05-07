@@ -8,28 +8,58 @@ uint8_t kbCtrlReadStatus()
 	return inb(KB_CTRL_STATS_REG);
 }
 
-// Returns true if keyboard controller buffer is full
-bool kbCtrlBufFull()
+// Returns true if keyboard controller output buffer is full
+bool kbCtrlOutBufFull()
 {
 	return kbCtrlReadStatus() & KB_CTRL_STATS_MASK_OUT_BUF;
 }
 
-// Wait for keyboard controller buffer to be empty
-void kbCtrlWaitEmpty()
+// Returns true if keyboard controller output buffer is empty
+bool kbCtrlOutBufEmpty()
 {
-	while (kbCtrlBufFull());
+	return (kbCtrlReadStatus() & KB_CTRL_STATS_MASK_OUT_BUF) == 0;
 }
 
-// Wait for keyboard controller buffer to be full
-void kbCtrlWaitFull()
+// Wait for keyboard controller output buffer to be empty
+void kbCtrlOutBufWaitEmpty()
 {
-	while (kbCtrlBufFull());
+	while (kbCtrlOutBufFull());
+}
+
+// Wait for keyboard controller output buffer to be full
+void kbCtrlOutBufWaitFull()
+{
+	while (kbCtrlOutBufEmpty());
+}
+
+// Returns true if keyboard controller input buffer is full
+bool kbCtrlInBufFull()
+{
+	return kbCtrlReadStatus() & KB_CTRL_STATS_MASK_IN_BUF;
+}
+
+// Returns true if keyboard controller input buffer is empty
+bool kbCtrlInBufEmpty()
+{
+	return (kbCtrlReadStatus() & KB_CTRL_STATS_MASK_IN_BUF) == 0;
+}
+
+// Wait for keyboard controller input buffer to be empty
+void kbCtrlInBufWaitEmpty()
+{
+	while (kbCtrlInBufFull());
+}
+
+// Wait for keyboard controller input buffer to be full
+void kbCtrlInBufWaitFull()
+{
+	while (kbCtrlInBufEmpty());
 }
 
 // Send command to keyboard controller
 void kbCtrlSendCmd(uint8_t cmd)
 {
-	kbCtrlWaitEmpty(); 
+	kbCtrlOutBufWaitEmpty(); 
 	outb(KB_CTRL_CMD_REG, cmd);
 }
 
@@ -56,7 +86,7 @@ bool kbSelfTest()
 {
 	kbCtrlSendCmd(KB_CTRL_CMD_SELF_TEST);
 
-	kbCtrlWaitFull();
+	kbCtrlOutBufWaitFull();
 
 	// Test passed if output buffer is 0x55
 	return (kbEncReadBuf() == 0x55) ? true : false;
@@ -65,7 +95,7 @@ bool kbSelfTest()
 // Send command to keyboard encoder
 void kbEncSendCmd(uint8_t cmd)
 {
-	kbCtrlWaitEmpty();
+	kbCtrlInBufWaitEmpty();
 	outb(KB_ENC_CMD_REG, cmd);
 }
 

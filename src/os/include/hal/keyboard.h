@@ -60,9 +60,15 @@
 #include <stdint.h>
 #include <stdbool.h>
 uint8_t kbCtrlReadStatus();
-bool kbCtrlBufFull();
-void kbCtrlWaitEmpty();
-void kbCtrlSendCmd (uint8_t cmd);
+bool kbCtrlOutBufFull();
+bool kbCtrlOutBufEmpty();
+void kbCtrlOutBufWaitEmpty();
+void kbCtrlOutBufWaitFull();
+bool kbCtrlInBufFull();
+bool kbCtrlInBufEmpty();
+void kbCtrlInBufWaitEmpty();
+void kbCtrlInBufWaitFull();
+void kbCtrlSendCmd(uint8_t cmd);
 void kbEnable();
 void kbDisable();
 uint8_t kbEncReadBuf();

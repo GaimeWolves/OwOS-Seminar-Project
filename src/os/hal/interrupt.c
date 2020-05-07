@@ -23,7 +23,7 @@ __interrupt_handler static void standart_interrupt_request_handler00(InterruptFr
 // Keyboard Keypress
 __interrupt_handler static void standart_interrupt_request_handler01(InterruptFrame_t* frame)
 {
-	if (kbCtrlBufFull()) {
+	if (kbCtrlOutBufFull()) {
 		kbHandleKeycode(kbEncReadBuf());
 	}
 	
