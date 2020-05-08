@@ -49,6 +49,7 @@ typedef struct drive_t
 int initATA();
 
 int ataRead(void* buf, uint64_t lba, uint32_t sectors, uint8_t drive);
+int ataWrite(void* buf, uint64_t lba, uint32_t sectors, uint8_t drive);
 
 drive_t getDrive(uint8_t drive);
 

@@ -29,6 +29,7 @@
 #define SECONDARY_CTRL_BASE 0x376
 
 // Offsets for specific registers
+#define REG_DATA     0x00
 #define REG_ERROR    0x01
 #define REG_FEATURE  0x01
 #define REG_COUNT    0x02
@@ -39,6 +40,8 @@
 #define REG_STATUS   0x07
 #define REG_COMMAND  0x07
 
+#define REG_ALT_STATUS 0x00
+#define REG_DEVICE_CTL 0x00
 #define REG_DRIVE_ADDR 0x01
 
 // IRQ numbers
@@ -97,7 +100,7 @@ typedef struct identify_data_t
 	uint64_t extSectorCount; // LBA48-addressable sector count
 
 	uint16_t unused6[152];
-} __attribute__((packed)) identify_data_t;
+} __attribute__((aligned(4),packed)) identify_data_t;
 
 // Holds the status bits as one byte
 // The union makes it possible to cast the status value to a status struct
@@ -135,6 +138,9 @@ static inline uint8_t index(uint8_t bus, uint8_t drive);
 static inline uint8_t bus(uint8_t drive);
 static inline uint8_t drv(uint8_t drive);
 
+static inline uint16_t ioPort(uint8_t bus);
+static inline uint16_t ctrlPort(uint8_t bus);
+
 static void disableInterrupts(bool disable);
 static void selectDrive(uint8_t bus, uint8_t drive);
 
@@ -145,6 +151,7 @@ static int identify(uint8_t bus, uint8_t drive, identify_data_t *data);
 static void detectDrives();
 
 static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba, uint32_t sectors, bool useLBA48, bool mode);
+static int doDataTansfer(void* buf, uint64_t lba, uint32_t sectors, uint8_t drive, bool mode);
 
 //------------------------------------------------------------------------------------------
 //				Private function implementations
@@ -180,14 +187,25 @@ static inline uint8_t drv(uint8_t drive)
 	return drive & 0x01;
 }
 
+// Returns the IO port base of the bus
+static inline uint16_t ioPort(uint8_t bus)
+{
+	return bus == PRIMARY_BUS ? PRIMARY_IO_BASE : SECONDARY_IO_BASE;
+}
+
+// Returns the control port base of the bus
+static inline uint16_t ctrlPort(uint8_t bus)
+{
+	return bus == PRIMARY_BUS ? PRIMARY_CTRL_BASE : SECONDARY_CTRL_BASE;
+}
+
 // Disables interrupts by setting nIEN on every drive
 static void disableInterrupts(bool disable)
 {
 	for (int i = 0; i < ATA_MAX_DRIVES; i++)
 	{
 		selectDrive(bus(i), drv(i));
-		uint16_t port = bus(i) == PRIMARY_BUS ? PRIMARY_CTRL_BASE : SECONDARY_CTRL_BASE;
-		outb(port, disable << 1);
+		outb(ctrlPort(bus(i)) + REG_DEVICE_CTL, disable << 1);
 	}
 }
 
@@ -202,30 +220,28 @@ static void selectDrive(uint8_t bus, uint8_t drive)
 	last = current;
 	current = driveIndex;
 
-	uint16_t port = REG_DRIVE + (bus == PRIMARY_BUS ? PRIMARY_IO_BASE : SECONDARY_IO_BASE);
 	uint16_t value = 0xE0 | (drive << 4); // Sets slave bit if drive is 1 (SLAVE_DRIVE)
-
-	outb(port, value);
+	outb(ioPort(bus) + REG_DRIVE, value);
 }
 
 // Creates a 400ns delay by polling the alt status register four times
 static void delay(uint8_t bus)
 {
-	uint16_t port = bus == PRIMARY_BUS ? PRIMARY_CTRL_BASE : SECONDARY_CTRL_BASE;
+	uint16_t port = ctrlPort(bus);
 	for (int i = 0; i < 4; i++)
-		inb(port);
+		inb(port + REG_ALT_STATUS);
 }
 
 // Polls the status register until BSY clears and DRQ sets or ERR sets
 // Returs error if ERR bit was set
 static int poll(uint8_t bus)
 {
-	uint16_t port = bus == PRIMARY_BUS ? PRIMARY_CTRL_BASE : SECONDARY_CTRL_BASE;
-	
+	uint16_t port = ctrlPort(bus) + REG_ALT_STATUS;
+
 	status_t status = (status_t)inb(port);
 
 	while(status.BSY)
-		status.byte = inb(port);
+		status.byte = inb(port );
 
 	while(!status.DRQ)
 	{
@@ -244,7 +260,7 @@ static int identify(uint8_t bus, uint8_t drive, identify_data_t *data)
 {
 	// Select needed drive
 	selectDrive(bus, drive);
-	uint16_t port = bus == PRIMARY_BUS ? PRIMARY_IO_BASE : SECONDARY_IO_BASE;
+	uint16_t port = ioPort(bus);
 
 	// Set needed registers to zero
 	outb(port + REG_COUNT, 0);
@@ -284,7 +300,7 @@ static int identify(uint8_t bus, uint8_t drive, identify_data_t *data)
 	// Read data into struct
 	uint16_t *buf = (uint16_t*)data;
 	for (int i = 0; i < NUM_WORDS; i++)
-		buf[i] = inw(port);
+		buf[i] = inw(port + REG_DATA);
 
 	return 0;
 }
@@ -316,7 +332,7 @@ static void detectDrives()
 // Handles both LBA modes and both reads and writes as the logic only changes minimally
 static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba, uint32_t sectors, bool useLBA48, bool mode)
 {
-	uint16_t port = bus == PRIMARY_BUS ? PRIMARY_IO_BASE : SECONDARY_IO_BASE;
+	uint16_t port = ioPort(bus);
 
 	// Different initialization procedure
 	if (useLBA48)
@@ -331,8 +347,9 @@ static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba
 		outb(port + REG_LBA_MID, (uint8_t)(lba >> 8));   // LBA2
 		outb(port + REG_LBA_HIGH, (uint8_t)(lba >> 16)); // LBA6
 
-		// Send command
-		outb(port + REG_COMMAND, mode == READ_MODE ? CMD_READ_SECTORS_EXT : CMD_WRITE_SECTORS_EXT);
+		// Send command	
+		uint8_t data = mode == READ_MODE ? CMD_READ_SECTORS_EXT : CMD_WRITE_SECTORS_EXT;
+		outb(port + REG_COMMAND, data);
 	}
 	else
 	{
@@ -344,8 +361,12 @@ static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba
 		outb(port + REG_LBA_HIGH, (uint8_t)(lba >> 16)); // LBA high byte
 		
 		// Send command
-		outb(port + REG_COMMAND, mode == READ_MODE ? CMD_READ_SECTORS : CMD_WRITE_SECTORS);
+		uint8_t data = mode == READ_MODE ? CMD_READ_SECTORS : CMD_WRITE_SECTORS;
+		outb(port + REG_COMMAND, data);
 	}
+
+	if (sectors == 0)
+		sectors = useLBA48 ? LBA48_SECTORS : LBA28_SECTORS;
 
 	// Same way of receving data
 	while(sectors--)
@@ -358,9 +379,9 @@ static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba
 		for (int i = 0; i < NUM_WORDS; i++)
 		{
 			if (mode == READ_MODE)
-				*buf++ = inw(port);
+				*buf++ = inw(port + REG_DATA);
 			else
-				outw(port, *buf++);
+				outw(port + REG_DATA, *buf++);
 		}
 
 		// Create 400ns delay to let the drive setup
@@ -371,20 +392,61 @@ static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba
 	// Not doing so can lead to successive WRITE commands failing
 	if (mode == WRITE_MODE)
 	{
-		uint16_t ctrl = bus == PRIMARY_BUS ? PRIMARY_CTRL_BASE : SECONDARY_CTRL_BASE;
+		uint16_t ctrl = ctrlPort(bus);
 
 		// Send CLEAR CACHE command to drive
 		outb(port + REG_COMMAND, CMD_CLEAR_CACHE);
 		
 		// Wait for BSY to clear
-		status_t status = (status_t)inb(ctrl);
+		status_t status = (status_t)inb(ctrl + REG_ALT_STATUS);
 		while(status.BSY)
-			status.byte = inb(ctrl);
+			status.byte = inb(ctrl + REG_ALT_STATUS);
 	}
 
 	return 0;
 }
 
+static int doDataTansfer(void* buf, uint64_t lba, uint32_t sectors, uint8_t drive, bool mode)
+{
+	// Error handling
+	if (!buf)
+		return -1;
+
+	if (sectors == 0)
+		return 0;
+
+	if (drive >= ATA_MAX_DRIVES)
+		return -1;
+
+	if (!drives[drive].inserted)
+		return -1;
+
+	if (lba + sectors > (drives[drive].hasLBA48 ? LBA48_MAX : LBA28_MAX))
+		return -1;
+
+	if (drives[drive].size < lba + sectors)
+		return -1;
+
+	// If possible use LBA28 because its faster
+	bool useLBA48 = lba + sectors > LBA28_MAX;
+	uint32_t divisor = useLBA48 ? LBA48_SECTORS : LBA28_SECTORS;
+
+	// Round up to full PIO transfers and divide by transfer size
+	uint32_t count = ((sectors + divisor - 1) & -divisor) / divisor;
+	
+	// Do the needed number of PIO transfers
+	for (uint32_t i = 0; i < count; i++)
+	{
+		// 0 means max amount
+		uint32_t amount = sectors - i * divisor >= divisor ? 0 : sectors % divisor;
+		uint16_t *bufOffset = (uint16_t*)((uintptr_t)buf + i * divisor * NUM_WORDS);
+		uint64_t lbaOffset = lba + i * divisor;
+
+		doPIOTransfer(bufOffset, bus(drive), drv(drive), lbaOffset, amount, useLBA48, mode);
+	}
+
+	return 0;
+}
 
 //------------------------------------------------------------------------------------------
 //				Public function implementations
@@ -409,43 +471,19 @@ int initATA()
 // Reads the specified amount of sectors from the drive
 int ataRead(void* buf, uint64_t lba, uint32_t sectors, uint8_t drive)
 {
-	// Error handling
-	if (!buf)
-		return -1;
+	return doDataTansfer(buf, lba, sectors, drive, READ_MODE);
+}
 
-	if (sectors == 0)
-		return 0;
-
-	if (drive >= ATA_MAX_DRIVES)
-		return -1;
-
-	if (lba + sectors > drives[drive].hasLBA48 ? LBA48_MAX : LBA28_MAX)
-		return -1;
-
-	if (drives[drive].size < lba + sectors)
-		return -1;
-
-	// If possible use LBA28 because its faster
-	bool useLBA48 = lba + sectors > LBA28_MAX;
-	uint32_t divisor = useLBA48 ? LBA48_SECTORS : LBA28_SECTORS;
-
-	for (uint32_t i = 0; i < sectors / divisor; i++)
-	{
-		// 0 means max amount
-		uint32_t amount = sectors - i * divisor >= divisor ? 0 : sectors;
-		uint16_t *bufOffset = ((uint16_t*)buf) + i * divisor * NUM_WORDS;
-		uint64_t lbaOffset = lba + i * divisor;
-
-		doPIOTransfer(bufOffset, bus(drive), drv(drive), lbaOffset, amount, useLBA48, READ_MODE);
-	}
-
-	return 0;
+// Writes the specified amount of sectors to the drive
+int ataWrite(void* buf, uint64_t lba, uint32_t sectors, uint8_t drive)
+{
+	return doDataTansfer(buf, lba, sectors, drive, WRITE_MODE);
 }
 
 // Gets information about a drive
 drive_t getDrive(uint8_t drive)
 {
-	if (drive >= 4) // Return "zero" struct on error
+	if (drive >= ATA_MAX_DRIVES) // Return "zero" struct on error
 		return (const drive_t){ false, false, 0, 0 };
 
 	return drives[drive];
