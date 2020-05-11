@@ -29,41 +29,43 @@
 #define SECONDARY_CTRL_BASE 0x376
 
 // Offsets for specific registers
-#define REG_DATA     0x00
-#define REG_ERROR    0x01
-#define REG_FEATURE  0x01
-#define REG_COUNT    0x02
-#define REG_LBA_LOW  0x03
-#define REG_LBA_MID  0x04
-#define REG_LBA_HIGH 0x05
-#define REG_DRIVE    0x06
-#define REG_STATUS   0x07
-#define REG_COMMAND  0x07
+// I/O base registers
+#define REG_DATA     0x00 // Read/Write to receive/send data to drive
+#define REG_ERROR    0x01 // Holds error information
+#define REG_FEATURE  0x01 // Command specific interface
+#define REG_COUNT    0x02 // Sector count register
+#define REG_LBA_LOW  0x03 // Low disk sector address
+#define REG_LBA_MID  0x04 // Mid disk sector address
+#define REG_LBA_HIGH 0x05 // High disk sector address
+#define REG_DRIVE    0x06 // Used to set active drive and other flags
+#define REG_STATUS   0x07 // Status register
+#define REG_COMMAND  0x07 // Command register
 
-#define REG_ALT_STATUS 0x00
-#define REG_DEVICE_CTL 0x00
-#define REG_DRIVE_ADDR 0x01
+// Control base registers
+#define REG_ALT_STATUS 0x00 // Alternate status (does not affect IRQs)
+#define REG_DEVICE_CTL 0x00 // Used to reset the bus or toggle interrupts
+#define REG_DRIVE_ADDR 0x01 // Provides information about drive state
 
-// IRQ numbers
-#define PRIMARY_IRQ 14
+// IRQ numbers (unused but here for completness)
+#define PRIMARY_IRQ   14
 #define SECONDARY_IRQ 15
 
 // Command numbers
-#define CMD_IDENTIFY          0xEC
-#define CMD_CLEAR_CACHE       0xE7
-#define CMD_READ_SECTORS      0x20
-#define CMD_READ_SECTORS_EXT  0x24
-#define CMD_WRITE_SECTORS     0x30
-#define CMD_WRITE_SECTORS_EXT 0x34
+#define CMD_IDENTIFY          0xEC // Get information about a drive
+#define CMD_CLEAR_CACHE       0xE7 // Clear the write cache
+#define CMD_READ_SECTORS      0x20 // Read sectors (LBA28)
+#define CMD_READ_SECTORS_EXT  0x24 // Read sectors (LBA48)
+#define CMD_WRITE_SECTORS     0x30 // Write sectors (LBA28)
+#define CMD_WRITE_SECTORS_EXT 0x34 // Write sectors (LBA48)
 
 // Important constants
-#define NUM_WORDS 256                // Number of words inside one sector
+#define NUM_WORDS     256            // Number of words inside one sector
 #define LBA28_SECTORS 256            // Highest number of sectors readable (128 KiB)
 #define LBA48_SECTORS 65536          // Highest number of sectors readable (32 Mib)
 #define LBA28_MAX 0x0FFFFFFF         // Highest addressable sector (128GB)
 #define LBA48_MAX 0x0000FFFFFFFFFFFF // Highest addressable sector (more than enough petabytes)
 
-// Modes
+// Modes for combining read and write functionality into one method
 #define READ_MODE false
 #define WRITE_MODE true
 
@@ -240,12 +242,12 @@ static int poll(uint8_t bus)
 
 	status_t status = (status_t)inb(port);
 
-	while(status.BSY)
+	while(status.BSY) // Wait for BSY to clear
 		status.byte = inb(port );
 
-	while(!status.DRQ)
+	while(!status.DRQ) // Wait for DRQ to set
 	{
-		if (status.ERR)
+		if (status.ERR) // Break on ERR
 			return -1;
 
 		status.byte = inb(port);
@@ -311,13 +313,15 @@ static void detectDrives()
 	identify_data_t data;
 	for (int i = 0; i < ATA_MAX_DRIVES; i++)
 	{
+		// Initialize to "no drive inserted"
 		drives[i] = (const drive_t){ false, false, 0, 0 };
-		if (!identify(bus(i), drv(i), &data))
+		if (!identify(bus(i), drv(i), &data)) // Identify drive
 		{
 			drives[i].inserted = true;
 			drives[i].hasLBA48 = data.hasLBA48;
 			drives[i].size = data.hasLBA48 ? data.extSectorCount : data.sectorCount;
 			
+			// Determine drive type
 			if (data.general.fixedMedia)
 				drives[i].type = ATA_DRIVE_TYPE_FIXED;
 			else if (data.general.removableMedia)
@@ -328,6 +332,7 @@ static void detectDrives()
 	}
 }
 
+
 // Does a PIO transfer by reading from or into the specified drive
 // Handles both LBA modes and both reads and writes as the logic only changes minimally
 static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba, uint32_t sectors, bool useLBA48, bool mode)
@@ -335,7 +340,7 @@ static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba
 	uint16_t port = ioPort(bus);
 
 	// Different initialization procedure
-	if (useLBA48)
+	if (useLBA48) // LBA48 Mode
 	{
 		outb(port + REG_DRIVE, 0x40 | (drive << 4));     // Set correct mode
 		outb(port + REG_COUNT, (uint8_t)(sectors >> 8)); // Count high byte
@@ -351,7 +356,7 @@ static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba
 		uint8_t data = mode == READ_MODE ? CMD_READ_SECTORS_EXT : CMD_WRITE_SECTORS_EXT;
 		outb(port + REG_COMMAND, data);
 	}
-	else
+	else // LBA28 mode
 	{
 		// Also contains highest four bits of lba address
 		outb(port + REG_DRIVE, 0xE0 | (drive << 4) | ((lba >> 24) & 0x0F)); // Set correct mode
@@ -365,6 +370,7 @@ static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba
 		outb(port + REG_COMMAND, data);
 	}
 
+	// 0 equals max number
 	if (sectors == 0)
 		sectors = useLBA48 ? LBA48_SECTORS : LBA28_SECTORS;
 
@@ -379,12 +385,12 @@ static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba
 		for (int i = 0; i < NUM_WORDS; i++)
 		{
 			if (mode == READ_MODE)
-				*buf++ = inw(port + REG_DATA);
+				*buf++ = inw(port + REG_DATA); // Read from drive
 			else
-				outw(port + REG_DATA, *buf++);
+				outw(port + REG_DATA, *buf++); // Write into drive
 		}
 
-		// Create 400ns delay to let the drive setup
+		// Create 400ns delay to let the drive setup next PIO transfer
 		delay(bus);
 	}
 
