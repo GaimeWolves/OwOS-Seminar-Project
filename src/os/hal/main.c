@@ -2,6 +2,7 @@
 #include <hal/gdt.h>
 #include <hal/pit.h>
 #include <hal/display.h>
+#include <hal/keyboard.h>
 //------------------------------------------------------------------------------------------
 //				Local Vars
 //------------------------------------------------------------------------------------------
@@ -21,6 +22,7 @@ int initHAL(void)
 	returnCode += initIDT();
 	returnCode += initPIT();
 	returnCode += initVidMem();
+	returnCode += initKeyboardHal();
 
 	return returnCode;
 }

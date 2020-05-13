@@ -2,8 +2,6 @@
 #include <hal/pic.h>
 #include <hal/gdt.h>
 #include <string.h>
-#include <hal/keyboard.h>
-#include <keyboard.h>
 
 //--------------------------------------------------------------------------
 //          Standart Interrupt Handlers
@@ -20,13 +18,9 @@ __interrupt_handler static void standart_interrupt_request_handler00(InterruptFr
     endOfInterrupt(0); //Send the endOfInterrupt signal to the PIC
 }
 
-// Keyboard Keypress
 __interrupt_handler static void standart_interrupt_request_handler01(InterruptFrame_t* frame)
 {
-	if (kbCtrlOutBufFull()) {
-		kbHandleKeycode(kbEncReadBuf());
-	}
-	
+	//Do nothing
     endOfInterrupt(1); //Send the endOfInterrupt signal to the PIC
 }
 __interrupt_handler static void standart_interrupt_request_handler02(InterruptFrame_t* frame)

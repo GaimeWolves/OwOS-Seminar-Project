@@ -1,19 +1,29 @@
-#pragma once
-#define KEY_ESCAPE        1
-#define KEY_1             2
-#define KEY_2             3
-#define KEY_3             4
-#define KEY_4             5
-#define KEY_5             6
-#define KEY_6             7
-#define KEY_7             8
-#define KEY_8             9
-#define KEY_9             0xa
-#define KEY_0             0xb
-#define KEY_SS            0xc
-#define KEY_HCOMMA        0xd
-#define KEY_BACKSPACE     0xe
-#define KEY_TAB           0xf
+#ifndef _KEYBOARD_H
+#define _KEYBOARD_H
+//------------------------------------------------------------------------------------------
+//				Includes
+//------------------------------------------------------------------------------------------
+#include <stdint.h>
+#include <stdbool.h>
+
+//------------------------------------------------------------------------------------------
+//				Constants
+//------------------------------------------------------------------------------------------
+#define KEY_ESCAPE        0x01
+#define KEY_1             0x02
+#define KEY_2             0x03
+#define KEY_3             0x04
+#define KEY_4             0x05
+#define KEY_5             0x06
+#define KEY_6             0x07
+#define KEY_7             0x08
+#define KEY_8             0x09
+#define KEY_9             0x0a
+#define KEY_0             0x0b
+#define KEY_SS            0x0c
+#define KEY_HCOMMA        0x0d
+#define KEY_BACKSPACE     0x0e
+#define KEY_TAB           0x0f
 #define KEY_Q             0x10
 #define KEY_W             0x11
 #define KEY_E             0x12
@@ -78,12 +88,25 @@
 #define KEY_KP_DECIMAL    0x53             //keypad delete key
 #define KEY_F11           0x57
 #define KEY_F12           0x58
-#include <stdint.h>
-#include <stdbool.h>
-uint8_t kbHandleKeycode(uint8_t keycode);
+
+//------------------------------------------------------------------------------------------
+//				Types
+//------------------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------------------
+//				Variables
+//------------------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------------------
+//				Public Function
+//------------------------------------------------------------------------------------------
+int initKeyboard();
+
 void getc(char* x);
 bool kbWasPressed(uint8_t keycode);
 bool kbWasReleased(uint8_t keycode);
 bool kbIsPressed(uint8_t keycode);
 uint8_t kbGetLastError();
 const char* kbErrorToString(uint8_t code);
+
+#endif //!_KEYBOARD_H

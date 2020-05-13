@@ -171,7 +171,7 @@ int initPMM(multiboot_info_t *header)
 
 	// memory_hi is the memory size after 1MiB
 	// so we add 1KiB to the value
-	memorySize = header->memory_lo + 1024 + header->memory_hi;
+	memorySize = 1024 + header->memory_hi;
 	debug_printf("Available memory: %uKiB", memorySize);
 
 	// Memory map goes directly after kernel

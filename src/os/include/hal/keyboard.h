@@ -1,4 +1,17 @@
-#pragma once
+#ifndef _HAL_KEYBOARD_H
+#define _HAL_KEYBOARD_H
+
+//------------------------------------------------------------------------------------------
+//				Includes
+//------------------------------------------------------------------------------------------
+#include <stdint.h>
+#include <stdbool.h>
+
+//------------------------------------------------------------------------------------------
+//				Constants
+//------------------------------------------------------------------------------------------
+#define KB_INTERRUPT_ADDRESS			33
+
 #define KB_CTRL_STATS_MASK_OUT_BUF      0b00000001
 #define KB_CTRL_STATS_MASK_IN_BUF       0b00000010
 #define KB_CTRL_STATS_MASK_SYSTEM       0b00000100
@@ -57,8 +70,22 @@
 #define KB_ERR_RESEND_CMD               0xFE
 #define KB_ERR_KEY                      0xFF
 
-#include <stdint.h>
-#include <stdbool.h>
+//------------------------------------------------------------------------------------------
+//				Types
+//------------------------------------------------------------------------------------------
+typedef int (*keyboardHandler_t)(uint8_t);
+
+//------------------------------------------------------------------------------------------
+//				Variables
+//------------------------------------------------------------------------------------------
+keyboardHandler_t kbKeycodeHandler;
+
+//------------------------------------------------------------------------------------------
+//				Public Function
+//------------------------------------------------------------------------------------------
+int initKeyboardHal();
+void setKeyboardHandle(keyboardHandler_t);
+
 uint8_t kbCtrlReadStatus();
 bool kbCtrlOutBufFull();
 bool kbCtrlOutBufEmpty();
@@ -75,3 +102,5 @@ uint8_t kbEncReadBuf();
 bool kbSelfTest();
 void kbEncSendCmd(uint8_t cmd);
 void kbSetLEDs(bool scrolllock, bool numlock, bool caps);
+
+#endif // _HAL_KEYBOARD_H

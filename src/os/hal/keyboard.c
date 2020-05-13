@@ -1,6 +1,35 @@
 #include <hal/keyboard.h>
+
+//------------------------------------------------------------------------------------------
+//				Includes
+//------------------------------------------------------------------------------------------
 #include <hal/cpu.h>
+#include <hal/interrupt.h>
 #include <stdbool.h>
+
+//------------------------------------------------------------------------------------------
+//				Interrupt Handler
+//------------------------------------------------------------------------------------------
+__interrupt_handler static void keyboard_handler(InterruptFrame_t* frame)
+{
+	if (kbCtrlOutBufFull()) {
+		kbKeycodeHandler(kbEncReadBuf());
+	}
+	
+    endOfInterrupt(1); //Send the endOfInterrupt signal to the PIC
+}
+
+//------------------------------------------------------------------------------------------
+//				Public Function
+//------------------------------------------------------------------------------------------
+int initKeyboardHal()
+{
+	return setVect(KB_INTERRUPT_ADDRESS, (interruptHandler_t)keyboard_handler);
+}
+void setKeyboardHandle(keyboardHandler_t handler)
+{
+	kbKeycodeHandler = handler;
+}
 
 // Read from keyboard controller status register
 uint8_t kbCtrlReadStatus()

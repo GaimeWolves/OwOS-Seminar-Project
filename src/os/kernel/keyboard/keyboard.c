@@ -1,8 +1,15 @@
-#include <string.h>
 #include <keyboard.h>
+
+//------------------------------------------------------------------------------------------
+//				Includes
+//------------------------------------------------------------------------------------------
+#include <string.h>
 #include <hal/keyboard.h>
 #include "bitmap.h"
 
+//------------------------------------------------------------------------------------------
+//				Keycode arrays
+//------------------------------------------------------------------------------------------
 // Normal keys
 const char keys_nomod[] = {
 	0, 0, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 0xE1, '\'', 0, 0,          // 0x00 - 0x0F
@@ -33,6 +40,18 @@ const char keys_ctrl_alt[] = {
 	'2', '3', '0', ',', 0, 0, '|', 0, 0                                                // 0x50 - 0x58
 };
 
+//------------------------------------------------------------------------------------------
+//				Types
+//------------------------------------------------------------------------------------------
+struct kbError
+{
+	int code;
+	const char* msg;
+};
+
+//------------------------------------------------------------------------------------------
+//				Local vars
+//------------------------------------------------------------------------------------------
 uint32_t current[3];
 uint32_t previous[3];
 bool _capslock = false;
@@ -40,10 +59,7 @@ bool _numlock = false;
 bool _scrolllock = false;
 uint8_t _lasterror = 1; // 0 is KB_ERR_BUF_OVERRUN while 1 is not a defined error
 char* c;
-struct kbError {
-	int code;
-	const char* msg;
-};
+
 struct kbError kbErrors[] = {
 	{0, "KB_ERR_BUF_OVERRUN"},
 	{0x83AB, "KB_ERR_ID_RET"},
@@ -56,61 +72,29 @@ struct kbError kbErrors[] = {
 	{0xFF, "KB_ERR_KEY"}
 };
 
-// Returns an error string for an error code, NULL for invalid codes
-const char* kbErrorToString(uint8_t code)
-{
-	// O(n) but insignificant
-	for (unsigned i = 0; i < sizeof(kbErrors)/sizeof(kbErrors[0]); i++) {
-		if (code == kbErrors[i].code)
-			return kbErrors[i].msg;
-	}
-	return NULL;
-}
-
-// True if keycode was pressed down last
-bool kbWasPressed(uint8_t keycode)
-{
-	return getBit(keycode, current) && !getBit(keycode, previous);
-}
-
-// True if keycode was released last
-bool kbWasReleased(uint8_t keycode)
-{
-	return !getBit(keycode, current) && getBit(keycode, previous);
-}
-
-// True if keycode is currently being pressed down
-bool kbIsPressed(uint8_t keycode)
-{
-	return getBit(keycode, current);
-}
-
+//------------------------------------------------------------------------------------------
+//				Private Function
+//------------------------------------------------------------------------------------------
 // True if shift is being held down
-bool shift()
+static bool shift()
 {
 	return _capslock || getBit(KEY_LSHIFT, current) || getBit(KEY_RSHIFT, current);
 }
 
 // True if control is being held down
-bool control()
+static bool control()
 {
 	return getBit(KEY_LCTRL, current);
 }
 
 // True if alt is being held down
-bool alt()
+static bool alt()
 {
 	return getBit(KEY_LALT, current);
 }
 
-// Returns the errorcode of the last error
-uint8_t kbGetLastError()
-{
-	return _lasterror;
-}
-
 // Handles the keycode from IRQ 1, returns 1 (!) on success and the error code on error
-uint8_t kbHandleKeycode(uint8_t keycode)
+static int kbHandleKeycode(uint8_t keycode)
 {
 	// Ignore the break code bit
 	uint8_t err = keycode & ~0x80;
@@ -171,6 +155,51 @@ uint8_t kbHandleKeycode(uint8_t keycode)
 		}
 	}
 	return 1;
+}
+
+//------------------------------------------------------------------------------------------
+//				Public Function
+//------------------------------------------------------------------------------------------
+int initKeyboard()
+{
+	setKeyboardHandle((keyboardHandler_t)kbHandleKeycode);
+	
+	return 0;
+}
+
+// Returns an error string for an error code, NULL for invalid codes
+const char* kbErrorToString(uint8_t code)
+{
+	// O(n) but insignificant
+	for (unsigned i = 0; i < sizeof(kbErrors)/sizeof(kbErrors[0]); i++) {
+		if (code == kbErrors[i].code)
+			return kbErrors[i].msg;
+	}
+	return NULL;
+}
+
+// True if keycode was pressed down last
+bool kbWasPressed(uint8_t keycode)
+{
+	return getBit(keycode, current) && !getBit(keycode, previous);
+}
+
+// True if keycode was released last
+bool kbWasReleased(uint8_t keycode)
+{
+	return !getBit(keycode, current) && getBit(keycode, previous);
+}
+
+// True if keycode is currently being pressed down
+bool kbIsPressed(uint8_t keycode)
+{
+	return getBit(keycode, current);
+}
+
+// Returns the errorcode of the last error
+uint8_t kbGetLastError()
+{
+	return _lasterror;
 }
 
 // Register to get the next key character written to c
