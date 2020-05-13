@@ -47,8 +47,8 @@
 #define REG_DRIVE_ADDR 0x01 // Provides information about drive state
 
 // IRQ numbers (unused but here for completness)
-#define PRIMARY_IRQ   14
-#define SECONDARY_IRQ 15
+#define PRIMARY_IRQ   32 + 14
+#define SECONDARY_IRQ 32 + 15
 
 // Command numbers
 #define CMD_IDENTIFY          0xEC // Get information about a drive
@@ -412,6 +412,7 @@ static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba
 	return 0;
 }
 
+// Does a complete data transfer by doing multiple PIO transfers with at max 256/65536 sectors
 static int doDataTansfer(void* buf, uint64_t lba, uint32_t sectors, uint8_t drive, bool mode)
 {
 	// Error handling

@@ -3,6 +3,8 @@
 #include <hal/pit.h>
 #include <hal/display.h>
 #include <hal/keyboard.h>
+#include <hal/atapio.h>
+
 //------------------------------------------------------------------------------------------
 //				Local Vars
 //------------------------------------------------------------------------------------------
@@ -23,6 +25,7 @@ int initHAL(void)
 	returnCode += initPIT();
 	returnCode += initVidMem();
 	returnCode += initKeyboardHal();
+	returnCode += initATA();
 
 	return returnCode;
 }
