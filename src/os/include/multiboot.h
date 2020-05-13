@@ -88,8 +88,8 @@ typedef struct
 typedef struct
 {
 	uint32_t size;
-	uint32_t addr;
-	uint32_t len;
+	uint64_t addr;
+	uint64_t len;
 	uint32_t type;
 } __attribute__((packed)) multiboot_mmap_entry_t;
 
