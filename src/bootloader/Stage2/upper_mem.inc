@@ -34,8 +34,6 @@ GetUpperMem:
 		;Add the 1MiB - 16MiB value
 		pop ebx
 		add eax, ebx
-		;count of 1KiB blocks in eax
-		shl eax, 10
 
 	ret
 
