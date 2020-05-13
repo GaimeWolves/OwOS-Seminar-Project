@@ -162,12 +162,12 @@ int initPMM(multiboot_info_t *header)
 	debug_set_color(0xF, 0x0);
 	debug_print("Initializing Physical Memory Manager...");
 
-//	if (!(header->flags & 1)) // No memory info available
-//	{
-//		debug_set_color(0xC, 0x0);
-//		debug_print("Memory size not available! Aborting...");
-//		return -1;
-//	}
+	if (!(header->flags & 1)) // No memory info available
+	{
+		debug_set_color(0xC, 0x0);
+		debug_print("Memory size not available! Aborting...");
+		return -1;
+	}
 
 	// memory_hi is the memory size after 1MiB
 	// so we add 1KiB to the value
