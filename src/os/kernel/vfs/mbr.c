@@ -105,6 +105,7 @@ static int parseMBR(int device)
 		current->device = device;
 		current->offset = mbr.entries[i].lbaOffset;
 		current->size = mbr.entries[i].size;
+		current->type = mbr.entries[i].systemID;
 	}
 
 	return 0;
@@ -129,10 +130,10 @@ int initMBR()
 }
 
 // Get the partitions for a drive
-disk_t getPartitionInfo(int device)
+disk_t* getPartitionInfo(int device)
 {
 	if (device < 0 || device >= ATA_MAX_DRIVES)
-		return (const disk_t){0};
+		return NULL;
 
-	return disks[device];
+	return &disks[device];
 }

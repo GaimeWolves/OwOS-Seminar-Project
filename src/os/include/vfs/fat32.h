@@ -1,45 +1,22 @@
-#ifndef _MBR_H
-#define _MBR_H
+#ifndef _FAT32_H
+#define _FAT32_H
 
 //------------------------------------------------------------------------------------------
 //				Includes
 //------------------------------------------------------------------------------------------
 
+#include <vfs/vfs.h>
+
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
 
 //------------------------------------------------------------------------------------------
 //				Constants
 //------------------------------------------------------------------------------------------
 
-#define MBR_MAX_PARTITIONS 4
-
-// Drive types (only contains used entries)
-#define FAT32_LBA 0x0C // FAT32 partition with LBA addressing (most common)
-#define GPT_HMBR  0xED // GPT hybrid MBR
-#define GPT_PMBR  0xEE // GPT protective MBR identifier
-#define EFI_PART  0xEF // EFI Partition
-
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
-
-typedef struct partition_t
-{
-	bool used;
-	int device;      // Device identifier (equals ATA number as we only support ATA)
-	bool active;     // Boot partition
-	uint64_t offset; // Offset in drive (sectors)
-	uint64_t size;   // Size of partition (sectors)
-	uint8_t type;    // Partition type (eg. FAT32, ext4, etc.)
-} partition_t;
-
-typedef struct disk_t
-{
-	uint64_t size; // Size of device (sectors)
-	partition_t partitions[MBR_MAX_PARTITIONS]; // Partition list
-} disk_t;
 
 //------------------------------------------------------------------------------------------
 //				Variables
@@ -49,7 +26,12 @@ typedef struct disk_t
 //				Public Function
 //------------------------------------------------------------------------------------------
 
-int initMBR();
-disk_t* getPartitionInfo(int device);
+int readFAT32(file_desc_t *node, size_t offset, int size, char *buf);
+int writeFAT32(file_desc_t *node, size_t offset, int size, char *buf);
+dirent *readdirFAT32(file_desc_t *node, int index);
+file_desc_t *findfileFAT32(file_desc_t *node, char *name);
+file_desc_t *mountFAT32(partition_t *partition);
+int mkdirFAT32(file_desc_t *node, char *name);
+int mkfileFAT32(file_desc_t *dir, char *name);
 
-#endif // _MBR_H
+#endif // _FAT32_H

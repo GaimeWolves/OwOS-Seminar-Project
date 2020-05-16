@@ -42,21 +42,20 @@
 //				Types
 //------------------------------------------------------------------------------------------
 
-struct vfs_node_t;
+// Predefine structs to use inside callback typedefs
+struct file_desc_t;
 struct FILE;
 struct dirent;
 
 // Define callback functions reffering to the used filesystem driver
-typedef int (*read_callback)(struct vfs_node_t *node, size_t offset, int size, char *buf);
-typedef int (*write_callback)(struct vfs_node_t *node, size_t offset, int size, char *buf);
-typedef struct FILE *(*open_callback)(struct vfs_node_t *node, int flags);
-typedef int (*close_callback)(struct FILE *file);
-typedef struct dirent *(*readdir_callback)(struct vfs_node_t *node, int index);
-typedef struct vfs_node_t *(*finddir_callback)(struct vfs_node_t *node, char *name);
+typedef int (*read_callback)(struct file_desc_t *node, size_t offset, int size, char *buf);
+typedef int (*write_callback)(struct file_desc_t *node, size_t offset, int size, char *buf);
+typedef struct dirent *(*readdir_callback)(struct file_desc_t *node, int index);
+typedef struct file_desc_t *(*findfile_callback)(struct file_desc_t *node, char *name);
 
 // Internal VFS node type
 // Holds information like where the file is located
-typedef struct vfs_node_t
+typedef struct file_desc_t
 {
 	char name[FILENAME_MAX]; // Filename
 	uint32_t flags;          // Flags
@@ -64,18 +63,22 @@ typedef struct vfs_node_t
 	uint32_t inode;          // Used in filesystem driver
 	partition_t *partition;  // Partition this file resides in
 
+	struct file_desc_t *link; // Used for symlinks and mountpoints
+
+	int openWriteDesc; // How often the file is opened in write mode (max. 1)
+	int openReadDesc;  // How often the file is opened in read mode
+
+	// Callbacks
 	read_callback read;
 	write_callback write;
-	open_callback open;
-	close_callback close;
 	readdir_callback readdir;
-	finddir_callback finddir;
-} vfs_node_t;
+	findfile_callback findfile;
+} file_desc_t;
 
 // External FILE type
 typedef struct FILE
 {
-	vfs_node_t *vfs_node; // Internal VFS node associated with the file
+	file_desc_t *file_desc; // Internal VFS file descriptor associated with the file
 	uint32_t flags;       // Flags
 
 	size_t rdPos; // Position inside file for read operations
@@ -122,5 +125,6 @@ int vfsFlush(FILE *file);
 int vfsSetvbuf(FILE *file, char *buf, int mode, size_t size);
 int vfsRename(char *oldPath, char *newPath);
 int vfsRemove(char *path);
+int vfsMkdir(char *path);
 
 #endif // _VFS_H
