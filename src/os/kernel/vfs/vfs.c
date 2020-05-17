@@ -57,6 +57,9 @@ static vfs_node_t *root;
 // and mounts it as the root node (path: / )
 int initVFS()
 {
+	// Find all devices using MBR partitioning
+	initMBR();
+
 	partition_t *bootpart = NULL;
 
 	// Iterate through ATA devices (the only supported type)

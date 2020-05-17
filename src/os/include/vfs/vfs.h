@@ -38,6 +38,12 @@
 
 #define BUFSIZ 1024 // Standard complete buffer size (one sector for each buffer)
 
+// File flags
+#define FS_FILE        0x01
+#define FS_DIRECTORY   0x02
+#define FS_SYMLINK     0x04
+#define FS_MOUNTPOINT  0x08 // Is the file an active mountpoint?
+
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
@@ -52,6 +58,8 @@ typedef int (*read_callback)(struct file_desc_t *node, size_t offset, int size, 
 typedef int (*write_callback)(struct file_desc_t *node, size_t offset, int size, char *buf);
 typedef struct dirent *(*readdir_callback)(struct file_desc_t *node, int index);
 typedef struct file_desc_t *(*findfile_callback)(struct file_desc_t *node, char *name);
+typedef struct file_desc_t *(*mkdir_callback)(struct file_desc_t *node, char *name);
+typedef struct file_desc_t *(*mkfile_callback)(struct file_desc_t *node, char *name);
 
 // Internal VFS node type
 // Holds information like where the file is located
@@ -61,7 +69,8 @@ typedef struct file_desc_t
 	uint32_t flags;          // Flags
 	uint32_t length;         // File length
 	uint32_t inode;          // Used in filesystem driver
-	partition_t *partition;  // Partition this file resides in
+
+	uintptr_t impl; // Used in filesystem drivers (usually pointer to additional metadata)
 
 	struct file_desc_t *link; // Used for symlinks and mountpoints
 
@@ -73,6 +82,8 @@ typedef struct file_desc_t
 	write_callback write;
 	readdir_callback readdir;
 	findfile_callback findfile;
+	mkdir_callback mkdir;
+	mkfile_callback mkfile;
 } file_desc_t;
 
 // External FILE type
