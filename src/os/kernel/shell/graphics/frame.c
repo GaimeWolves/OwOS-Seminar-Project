@@ -104,6 +104,18 @@ void shell_frame_print_char(char c, bool cursor)
 
 	shell_frame_update_state(1);
 }
+void shell_frame_backspace(void)
+{
+	uint8_t column = state.column == 0 ? shell_frame_get_max_column() - 1 : state.column - 1;
+	uint8_t row = state.column == 0 ? state.row - 1 : state.row;
+	addchr(column, row, 0);
+	move(column, row);
+
+	state.column = column;
+	state.row = row;
+
+	refresh();
+}
 
 void shell_frame_goto_next_row(void)
 {
@@ -144,4 +156,9 @@ void shell_frame_handle_input(char c)
 		shell_frame_print_char(c, true);
 		break;
 	}
+}
+
+void shell_frame_handle_backspace(void)
+{
+	shell_frame_backspace();
 }

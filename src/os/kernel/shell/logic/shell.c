@@ -51,6 +51,17 @@ noreturn void shell_start(void)
 		char temp_c;
 		while((temp_c = read(in_stream)) != '\n')
 		{
+			if(temp_c == 8) //BACKSPACE
+			{
+				if(buffer_index)
+				{
+					shell_frame_handle_backspace();
+					buffer_index--;
+				}
+
+				continue;
+			}
+
 			if(buffer_index < SHELL_MAX_INPUT_BUFFER)
 			{
 				buffer[buffer_index++] = temp_c;

@@ -24,5 +24,6 @@ void shell_frame_init(void);
 
 void shell_frame_print_shell_line(void);
 void shell_frame_handle_input(char c);
+void shell_frame_handle_backspace(void);
 
 #endif
