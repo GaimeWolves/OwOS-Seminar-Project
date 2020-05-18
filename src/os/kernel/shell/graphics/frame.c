@@ -123,6 +123,7 @@ char* shell_frame_get_shell_line_string(void)
 void shell_frame_init(void)
 {
 	clrscr();
+	state.row = (uint8_t)-1;
 	shell_frame_print_shell_line();
 }
 
