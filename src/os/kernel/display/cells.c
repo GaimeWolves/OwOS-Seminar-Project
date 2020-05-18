@@ -101,19 +101,25 @@ int addchr(int x, int y, char character)
 	if(y < 0 || y >= MAX_ROWS)
 		return -3;
 
-	getBufferPixel((uint8_t)x, (uint8_t)y)->character = character;
+	pixel_t pixelAttribute;
+	pixelAttribute.character = character;
+	pixelAttribute.color = internColor;
+	setBufferPixel((uint8_t)x, (uint8_t)y, pixelAttribute);
 }
 int addstr(int x, int y, char* str)
 {
 	if(x < 0 || x >= MAX_COLS)
 		return -2;
-	
+
+	pixel_t pixelAttribute;
+	pixelAttribute.color = internColor;
 	for(; *str != 0; str++)
 	{
 		if(y < 0 || y >= MAX_ROWS)
 			return -3;
 
-		getBufferPixel((uint8_t)x, (uint8_t)y)->character = *str;
+		pixelAttribute.character = *str;
+		setBufferPixel((uint8_t)x, (uint8_t)y, pixelAttribute);
 
 		x++;
 		if(x == MAX_COLS)
