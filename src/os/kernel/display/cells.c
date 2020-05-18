@@ -58,7 +58,7 @@ int move(int x, int y)
 	if(y < 0 || y >= MAX_ROWS)
 		return -3;
 
-	setCursor((uint8_t)x, (uint8_t)y, internColor);
+	setCursor((uint8_t)x, (uint8_t)y);
 }
 
 int mvaddchr(int x, int y, char character)
@@ -144,4 +144,5 @@ int printw(int x, int y, char* fmt, ...)
 void refresh()
 {
 	swapBuffer();
+	refreshCursor(internColor);
 }

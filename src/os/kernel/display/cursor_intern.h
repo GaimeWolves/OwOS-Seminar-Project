@@ -20,6 +20,7 @@
 //------------------------------------------------------------------------------------------
 //				Public Function
 //------------------------------------------------------------------------------------------
-void setCursor(uint8_t column, uint8_t row, color_t color);
+void setCursor(uint8_t column, uint8_t row);
+void refreshCursor(color_t color);
 
 #endif
