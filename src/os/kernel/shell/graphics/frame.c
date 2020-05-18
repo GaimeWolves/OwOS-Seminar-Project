@@ -135,5 +135,14 @@ void shell_frame_print_shell_line(void)
 
 void shell_frame_handle_input(char c)
 {
-	shell_frame_print_char(c, true);
+	switch (c)
+	{
+	case '\n':
+		shell_frame_goto_next_row();
+		break;
+	
+	default:
+		shell_frame_print_char(c, true);
+		break;
+	}
 }
