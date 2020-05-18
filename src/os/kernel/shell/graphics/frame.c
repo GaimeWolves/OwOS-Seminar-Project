@@ -30,7 +30,7 @@ uint8_t shell_frame_get_max_row(void)
 
 bool shell_frame_is_last_row(void)
 {
-	return shell_frame_get_max_row() == state.row;
+	return shell_frame_get_max_row() == state.row + 1;
 }
 
 bool shell_frame_is_enough_column_space(uint8_t count)
@@ -44,7 +44,7 @@ bool shell_frame_is_enough_row_space(uint8_t count)
 bool shell_frame_is_enough_space(size_t character_count)
 {
 	return shell_frame_is_enough_row_space(
-		shell_frame_is_enough_column_space(character_count % shell_frame_get_max_column())	//+1 if current row is to full
+		!shell_frame_is_enough_column_space(character_count % shell_frame_get_max_column())	//+1 if current row is to full
 		+ (character_count / shell_frame_get_max_column())									//+(column count occupied by the characters themself)
 	);
 }
@@ -61,7 +61,7 @@ void shell_frame_update_state(size_t strlen)
 
 void shell_frame_scroll(uint8_t count)
 {
-	if(count >= state.row && !count)
+	if(count >= state.row || !count)
 		return;
 	
 	//scroll screen
@@ -136,12 +136,12 @@ char* shell_frame_get_shell_line_string(void)
 void shell_frame_init(void)
 {
 	clrscr();
-	state.row = (uint8_t)-1;
 }
 
 void shell_frame_print_shell_line(void)
 {
-	shell_frame_goto_next_row();
+	if(state.column)
+		shell_frame_goto_next_row();
 	shell_frame_print_string(shell_frame_get_shell_line_string(), true);
 }
 

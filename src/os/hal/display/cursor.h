@@ -24,7 +24,7 @@ void enableCursor(uint8_t cursorStart, uint8_t cursorEnd);
 void disableCursor(void);
 void setCursorPos(uint8_t column, uint8_t row);
 uint8_t getCursorContinuousPos(void);
-void setCursorContinuousPos(uint8_t);
+void setCursorContinuousPos(uint16_t);
 
 
 #endif

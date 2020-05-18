@@ -28,7 +28,8 @@ static inline int internScroll(uint8_t count, void* buffer)
 
 	size_t pointCount = count * MAX_COLS;
 
-	memmove(buffer, buffer + (VID_MEM_SIZE - pointCount) * sizeof(pixel_t), pointCount * sizeof(pixel_t));
+	memmove(buffer, buffer + pointCount * sizeof(pixel_t), (VID_MEM_SIZE - pointCount) * sizeof(pixel_t));
+	memset(buffer + (VID_MEM_SIZE - pointCount) * sizeof(pixel_t), 0, pointCount * sizeof(pixel_t));
 
 	return 0;
 }

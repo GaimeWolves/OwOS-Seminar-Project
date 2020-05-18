@@ -57,7 +57,7 @@ uint8_t getCursorContinuousPos(void)
     return pos;
 }
 
-void setCursorContinuousPos(uint8_t pos)
+void setCursorContinuousPos(uint16_t pos)
 {
 	//Command to a VGA related address and
 	//Write data in two 8 bit packages
