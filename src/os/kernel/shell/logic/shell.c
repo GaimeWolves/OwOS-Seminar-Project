@@ -4,6 +4,8 @@
 
 #include <shell/in_stream.h>
 #include <shell/out_stream.h>
+#include <memory/heap.h>
+#include <hal/cpu.h>
 
 #include <stdnoreturn.h>
 
@@ -18,6 +20,10 @@
 //------------------------------------------------------------------------------------------
 //				Private Function
 //------------------------------------------------------------------------------------------
+void shell_handle_input(char* input)
+{
+	//FIXME: HANDLE INPUT
+}
 
 //------------------------------------------------------------------------------------------
 //				Public Function
@@ -31,7 +37,36 @@ void shell_init(void)
 
 noreturn void shell_start(void)
 {
-	//FIXME: ADD SHELL LOOP
+	char* buffer = (char*)kmalloc(SHELL_MAX_INPUT_BUFFER);
+	size_t buffer_index;
+
+	characterStream_t* in_stream = shell_in_stream_get();
+	open(in_stream);
+
+	while(true)
+	{
+		buffer_index = 0;
+		shell_frame_print_shell_line();
+
+		char temp_c;
+		while((temp_c = read(in_stream)) != '\n')
+		{
+			if(buffer_index < SHELL_MAX_INPUT_BUFFER)
+			{
+				buffer[buffer_index++] = temp_c;
+
+				shell_frame_handle_input(temp_c);
+			}
+			else
+			{
+				//FIXME: HANDLE FULL BUFFER
+				halt();
+			}
+		}
+		shell_frame_handle_input('\n');
+
+		shell_handle_input(buffer);
+	}
 }
 
 void shell_handle_output(char c)

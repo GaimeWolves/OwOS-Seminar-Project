@@ -124,7 +124,6 @@ void shell_frame_init(void)
 {
 	clrscr();
 	state.row = (uint8_t)-1;
-	shell_frame_print_shell_line();
 }
 
 void shell_frame_print_shell_line(void)
