@@ -38,12 +38,7 @@ void setCursorPos(uint8_t column, uint8_t row)
 	//Calculate continuous address 
 	uint16_t pos = (uint16_t)row * MAX_COLS + (uint16_t)column;
 
-	//Command to a VGA related address and
-	//Write data in two 8 bit packages
-	outb(0x3D4, 0x0F);
-	outb(0x3D5, (uint8_t) (pos & 0xFF));
-	outb(0x3D4, 0x0E);
-	outb(0x3D5, (uint8_t) ((pos >> 8) & 0xFF));
+	setCursorContinuousPos(pos);
 }
 
 uint8_t getCursorContinuousPos(void)
@@ -60,4 +55,14 @@ uint8_t getCursorContinuousPos(void)
 
 	//Return buffer
     return pos;
+}
+
+void setCursorContinuousPos(uint8_t pos)
+{
+	//Command to a VGA related address and
+	//Write data in two 8 bit packages
+	outb(0x3D4, 0x0F);
+	outb(0x3D5, (uint8_t) (pos & 0xFF));
+	outb(0x3D4, 0x0E);
+	outb(0x3D5, (uint8_t) ((pos >> 8) & 0xFF));
 }
