@@ -52,6 +52,7 @@ bool shell_frame_is_enough_space(size_t character_count)
 void shell_frame_update_state(size_t strlen)
 {
 	state.column += strlen % shell_frame_get_max_column();
+	state.column %= shell_frame_get_max_column();
 	state.row += strlen / shell_frame_get_max_column();
 	
 	if(state.column < strlen % shell_frame_get_max_column())
