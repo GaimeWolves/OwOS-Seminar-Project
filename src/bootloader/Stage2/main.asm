@@ -126,7 +126,6 @@ LowerMem:						dd 0
 ;-----------------------------------------
 ;	Includes
 ;-----------------------------------------
-%include "./ELF/elf_header.inc"
 %include "../Help_Functions/memory_lba.inc"
 %include "../Help_Functions/FAT32_FAT.inc"
 %include "../Help_Functions/FAT32_RootDir.inc"
@@ -136,6 +135,11 @@ LowerMem:						dd 0
 
 ;-----------------------------------------
 [bits 32]
+;-----------------------------------------
+;	Includes (32 bits)
+;-----------------------------------------
+%include "./ELF/elf_header.inc"
+
 ;-----------------------------------------
 ;	setup32
 ;	Called with
