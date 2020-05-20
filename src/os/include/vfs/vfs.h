@@ -16,7 +16,9 @@
 
 #define FILENAME_MAX 128 // Max filename length
 
-#define EOF -1 // EOF indicator
+// Error codes
+#define EOF -1       // EOF indicator
+#define EOVERFLOW -2 // Overflow in directory stream
 
 // Used in seek methods
 #define SEEK_SET 0 // Seek uses beginning of file
@@ -52,11 +54,13 @@
 struct file_desc_t;
 struct FILE;
 struct dirent;
+struct DIR;
+struct mountpoint_t;
 
 // Define callback functions reffering to the used filesystem driver
 typedef int (*read_callback)(struct file_desc_t *node, size_t offset, int size, char *buf);
 typedef int (*write_callback)(struct file_desc_t *node, size_t offset, int size, char *buf);
-typedef struct dirent *(*readdir_callback)(struct file_desc_t *node, int index);
+typedef int (*readdir_callback)(struct DIR *dirstream);
 typedef struct file_desc_t *(*findfile_callback)(struct file_desc_t *node, char *name);
 typedef struct file_desc_t *(*mkdir_callback)(struct file_desc_t *node, char *name);
 typedef struct file_desc_t *(*mkfile_callback)(struct file_desc_t *node, char *name);
@@ -65,12 +69,12 @@ typedef struct file_desc_t *(*mkfile_callback)(struct file_desc_t *node, char *n
 // Holds information like where the file is located
 typedef struct file_desc_t
 {
-	char name[FILENAME_MAX]; // Filename
-	uint32_t flags;          // Flags
-	uint32_t length;         // File length
-	uint32_t inode;          // Used in filesystem driver
+	char name[FILENAME_MAX + 1]; // Filename
+	uint32_t flags;              // Flags
+	uint32_t length;             // File length
+	uint32_t inode;              // Used in filesystem driver
 
-	uintptr_t impl; // Used in filesystem drivers (usually pointer to additional metadata)
+	struct mountpoint_t *mount; // Mounted filesystem this file descriptor lies
 
 	struct file_desc_t *link; // Used for symlinks and mountpoints
 
@@ -112,9 +116,30 @@ typedef struct FILE
 // Directory entry type
 typedef struct dirent
 {
-	char name[FILENAME_MAX]; // Entry name
-	uint32_t inode;          // Used in filesystem driver
+	char name[FILENAME_MAX + 1]; // Entry name
+	uint32_t inode;              // Used in filesystem driver
 } dirent;
+
+// Represents a directory stream
+typedef struct DIR
+{
+	file_desc_t *dirfile; // The directory this stream handles
+	size_t index;            // The current index inside the directory
+	dirent entry;         // dirent structure returned by readdir
+} DIR;
+
+// Gets called when a filesystem is requested to be unmounted and no file descriptors in it are open
+typedef void (*unmount_callback)(struct mountpoint_t *mountpoint);
+
+// Represents a mounted filesystem
+typedef struct mountpoint_t
+{
+	file_desc_t *root;         // Root node of the mounted filesystem
+	partition_t *partition;   // Partition where filesystem is located
+	uintptr_t metadata;       // Pointer to unique metadata for every filesystem driver
+	unmount_callback unmount; // Used to clear metadata info
+} mountpoint_t;
+
 
 //------------------------------------------------------------------------------------------
 //				Variables
@@ -137,5 +162,9 @@ int vfsSetvbuf(FILE *file, char *buf, int mode, size_t size);
 int vfsRename(char *oldPath, char *newPath);
 int vfsRemove(char *path);
 int vfsMkdir(char *path);
+
+DIR *vfsOpendir(char *path);
+int vfsCloseDir(DIR *dir);
+dirent *vfsReaddir(DIR *dir);
 
 #endif // _VFS_H

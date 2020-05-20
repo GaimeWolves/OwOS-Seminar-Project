@@ -7,6 +7,8 @@
 #include <memory/heap.h>
 #include <hal/atapio.h>
 #include <vfs/mbr.h>
+#include <vfs/pathutils.h>
+#include <string.h>
 #include <debug.h>
 
 #include <vfs/fat32.h>
@@ -22,7 +24,7 @@
 // Datastructure to represent the node graph of the filesystem currently in memory
 typedef struct vfs_node_t
 {
-	file_desc_t *file_desc;
+	struct file_desc_t *file_desc;
 
 	// Pointer to first entry inside directory
 	// (applies if associated file is a directory or mountpoint)
@@ -45,9 +47,60 @@ static vfs_node_t *root;
 //				Private function declarations
 //------------------------------------------------------------------------------------------
 
+static file_desc_t *findfile(vfs_node_t *node, char *path);
+
 //------------------------------------------------------------------------------------------
 //				Private function implementations
 //------------------------------------------------------------------------------------------
+
+static file_desc_t *findfile(vfs_node_t *node, char *path)
+{
+	// Does the node refer to another node? (eg. symlinks or mountpoints)
+	if (node->file_desc->flags & (FS_MOUNTPOINT | FS_SYMLINK))
+		node = node->child;
+	
+	// Correct node found
+	if (getPathLength(path) == 0)
+		return node->file_desc;
+
+	// Is the (new) node a directory?
+	if (!(node->file_desc->flags & FS_DIRECTORY))
+		return NULL;
+
+	// Get file string
+	char *file = getPathSubstr(path, 0);
+	rmPathDirectory(path);
+
+	// Check if node is already in memory (recursively traverse node tree)
+	for (vfs_node_t *child = node->child; child; child = child->next)
+	{
+		if (strcmp(child->file_desc->name, file) == 0)
+		{
+			kfree(file);
+			return findfile(child, path);
+		}
+	}
+
+	// Get file via filesystem driver
+	file_desc_t *newFile = node->file_desc->findfile(node->file_desc, file);
+
+	if (!newFile)
+	{
+		kfree(file);
+		return NULL;
+	}
+
+	vfs_node_t *newNode = kzalloc(sizeof(vfs_node_t));
+	newNode->file_desc = newFile;
+
+	// Insert node
+	node->child->prev = newNode;
+	newNode->next = node->child;
+	node->child = newNode;
+
+	kfree(file);
+	return findfile(newNode, path);
+}
 
 //------------------------------------------------------------------------------------------
 //				Public function implementations
@@ -102,9 +155,9 @@ int initVFS()
 		return -1;
 	}
 
-	file_desc_t *rootfile = mountFAT32(bootpart);
+	mountpoint_t *mount = mountFAT32(bootpart);
 
-	if (!rootfile)
+	if (!mount)
 	{
 		debug_set_color(0x0C, 0x00);
 		debug_print("Could not mount the root filesystem!");
@@ -124,7 +177,64 @@ int initVFS()
 	}
 
 	// Save the root filesystem inside the root vfs node
-	root->file_desc = rootfile;
+	root->file_desc = mount->root;
 
 	return 0;
+}
+
+FILE* vfsOpen(const char *path, int flags);
+void vfsClose(FILE *file);
+size_t vfsRead(FILE *file, void *buf, size_t size);
+size_t vfsWrite(FILE *file, const void *buf, size_t size);
+
+int vfsSeek(FILE *file, size_t offset, int origin);
+int vfsFlush(FILE *file);
+int vfsSetvbuf(FILE *file, char *buf, int mode, size_t size);
+int vfsRename(char *oldPath, char *newPath);
+int vfsRemove(char *path);
+int vfsMkdir(char *path);
+
+DIR *vfsOpendir(char *path)
+{
+	rmPathDirectory(path);
+
+	DIR *dir = kzalloc(sizeof(DIR));
+	dir->dirfile = findfile(root, path);
+
+	if (!dir->dirfile)
+	{
+		kfree(dir);
+		return NULL;
+	}
+
+	if (!(dir->dirfile->flags & FS_DIRECTORY))
+	{
+		kfree(dir);
+		return NULL;
+	}
+
+	dir->dirfile->openReadDesc++;
+
+	return dir;
+}
+
+int vfsCloseDir(DIR *dir)
+{
+	dir->dirfile->openReadDesc--;
+	kfree(dir);
+
+	return 0;
+}
+
+dirent *vfsReaddir(DIR *dir)
+{
+	int ret = dir->dirfile->readdir(dir);
+
+	if (ret != EOF)
+		dir->index++;
+
+	if (ret)
+		return NULL;
+
+	return &dir->entry;
 }
