@@ -7,7 +7,39 @@
 ;	EBX = Address of the program section header in memory
 ;-----------------------------------------
 ProcessELFSection:
-	
+	;Save ecx
+	push ecx
+	;Test if we can handle the section
+	cmp DWORD[ebx + ELF_Program_Header_32.type], 0x01 ;(load)
+	jne .return
+	;Init memory segment
+	mov edx, DWORD[ebx + ELF_Program_Header_32.mem_offset]
+	mov ecx, DWORD[ebx + ELF_Program_Header_32.mem_size]
+	.null_loop:
+		mov BYTE[edx], 0x00
+		;setup regs for the next repeat
+		dec ecx
+		inc edx
+		cmp ecx, 0x00
+		jne .null_loop
+	;Copy data from file
+	;SOURCE
+	mov edx, DWORD[ebx + ELF_Program_Header_32.file_offset]
+	add edx, eax
+	mov esi, edx
+	;DEST
+	mov edx, DWORD[ebx + ELF_Program_Header_32.mem_offset]
+	mov edi, edx
+	;COUNT
+	mov ecx, DWORD[ebx + ELF_Program_Header_32.file_size]
+
+	;Copy bytes
+	rep movsb
+
+	.return:
+		;Restore ecx
+		pop ecx
+		ret
 
 ;-----------------------------------------
 ;	SetupELFSections
