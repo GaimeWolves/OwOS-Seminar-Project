@@ -1,10 +1,28 @@
 #include <string.h>
 
+#include <stdint.h>
+
 size_t strlen(const char* s)
 {
 	size_t i = 0;
 	while(s[++i]);
 	return i;
+}
+
+int strcmp(const char* lhs, const char* rhs)
+{
+	uint8_t c1, c2;
+
+	do
+	{
+		c1 = (uint8_t) *lhs++;
+		c2 = (uint8_t) *rhs++;
+
+		if (!c1)
+			return c1 - c2;
+	} while (c1 == c2);
+
+	return c1 - c2;
 }
 
 char* strcpy(char* dest, const char* src)
