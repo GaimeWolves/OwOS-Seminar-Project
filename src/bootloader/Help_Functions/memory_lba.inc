@@ -21,6 +21,7 @@ test_bios_extension:
 ;	DL = drive number
 ;   CX = Count of sectors wished to be loaded
 ;   EAX = LBA
+;	DS = 0
 ;   ES:BX = pointer to memory buffer
 ;-----------------------------------------
 load_sector_lba:
@@ -35,10 +36,7 @@ load_sector_lba:
 	mov al, 0x10
 	SetMemberByte(al, DAP, DAP_struct.Size)
 
-	xor ax, ax
-	mov ds, ax
-	lea ax, [DAP]
-	mov si, ax
+	mov si, DAP
 
 	mov ah, 0x42
 	int 0x13

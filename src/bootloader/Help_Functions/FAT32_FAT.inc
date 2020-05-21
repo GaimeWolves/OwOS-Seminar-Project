@@ -5,6 +5,7 @@ FATTempSectorOffset			equ 0x7f00
 ;	EAX = CurrentCluster
 ;	EBX = Partition LBA offset
 ;	 DL = DriveNumber
+;	 DS	= 0
 ;	EAX => Offset in FAT
 ;-----------------------------------------
 LoadFATEntry:
@@ -63,6 +64,7 @@ LoadFATEntry:
 ;	EAX = Current Cluster
 ;	EBX = Partition LBA offset
 ;	 DL = DriveNumber
+;	 DS	= 0
 ;	EAX => NextCluster
 ;-----------------------------------------
 GetNextCluster:
@@ -80,20 +82,17 @@ GetNextCluster:
 ;	EAX = Current Cluster
 ;	EBX = Partition LBA offset
 ;	 DL = DriveNumber
-;   DS:SI = pointer to memory buffer
-;	CX => Loaded sector count
+;   ES:DI = pointer to memory buffer
+;	 DS	= 0
 ;-----------------------------------------
 LoadCluster:
 	;Save arguments
-	push ds
-	push si
-	push ds
-	push si
+	push es
+	push di
+	push es
+	push di
 	push dx
 	push eax
-	;clear ds register
-	xor cx, cx
-	mov ds, cx
 	;Calculate first data sector
 	mov eax, DWORD[0x7c00 + BPB.SectorsPerFAT]
 	xor ecx, ecx
@@ -125,15 +124,15 @@ LoadCluster:
 
 	call load_sector_lba
 
-	;increase si
+	;increase di
 	mov ax, cx ;get count of loaded sectors
 	mov bx, WORD[0x7c00 + BPB.BytesPerSector] ;get byte count of a sector
 	mul bx ;calculate loaded bytes
 
 	;restore memory buffer
-	pop si
-	pop ds
+	pop di
+	pop es
 
-	add si, ax ;add si
+	add di, ax ;add di
 
 	ret

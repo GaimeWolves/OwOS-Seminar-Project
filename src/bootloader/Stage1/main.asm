@@ -83,9 +83,11 @@ push dx ;Restore when loading the cluster chain and pass to Stage2
 GetMemberDWord(ebx,si,PartitionEntry.LBA) ;LBA offset is saved in the partition entry struct in ds:si 
 push ebx ;Restore when loading the cluster chain
 
-;set data segment register to 0
+;set segment registers to 0
 push 0
 pop ds
+push 0
+pop es
 ;code segment register already contains 0
 
 ;Now interrupt are safe
@@ -96,9 +98,7 @@ mov di, FileName ;"STAGE2  SYS"
 call SearchFile
 
 ;load to 0x0:STAGE2_OFFSET
-push 0x0
-pop ds					;Segment 0
-mov si, STAGE2_OFFSET	;Offset STAGE2_OFFSET
+mov di, STAGE2_OFFSET	;Offset STAGE2_OFFSET
 ;Load the sectors of the clusterchain
 pop ebx	;Restore partition's LBA offset
 pop dx	;Restore drive number and pass it to Stage2
