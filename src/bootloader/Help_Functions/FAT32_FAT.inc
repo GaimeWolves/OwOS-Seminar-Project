@@ -134,5 +134,13 @@ LoadCluster:
 	pop es
 
 	add di, ax ;add di
+	jc .overflow ;if di overflows carry is set
 
-	ret
+	.no_overflow:
+		ret
+
+	.overflow:
+		mov ax, es
+		add ax, 0x1000
+		mov es, ax
+		ret
