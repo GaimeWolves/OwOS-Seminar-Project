@@ -5,6 +5,7 @@ FATRootDirBufferOffset			equ 0x8100
 ;	EBX = Partition LBA offset
 ;	 DL = DriveNumber;
 ;	ES:DI = Reference to file name
+;	DS = 0
 ;   EAX => First Cluster
 ;-----------------------------------------
 SearchFile:
@@ -17,11 +18,11 @@ SearchFile:
 	mov eax, DWORD[0x7c00 + BPB.ClusterOfRootDir]
 	
 	.nextCluster:
-		;Load to segment 0x0
-		push 0x0
-		pop ds
+		;Load to segment 0x00
+		push 0x00
+		pop es
 		;load to offset 0x8100
-		mov si, FATRootDirBufferOffset
+		mov di, FATRootDirBufferOffset
 		;Push cluster
 		push eax
 		;Load cluster
@@ -33,8 +34,7 @@ SearchFile:
 
 		;String entry in directory struct
 		;ds = 0x0 => already contained
-		mov cx, FATRootDirBufferOffset
-		mov si, cx
+		mov si, FATRootDirBufferOffset
 
 		.compareLoop:
 			;Restore string buffer
@@ -85,12 +85,11 @@ SearchFile:
 ;	EAX = First cluster
 ;	EBX = Partition's LBA offset
 ;	 DL = Drive number;
-;	DS:SI = Memory buffer
+;	ES:DI = Memory buffer
+;	 DS	= 0
 ;	CX => Loaded sectors count
 ;-----------------------------------------
 LoadClusterChain:
-	lea bp, [ss:LoadedCountTemp]
-	mov WORD[bp], 0x0
 	.loop:
 		;Save
 		;because LoadCluster will mess up every register
@@ -99,8 +98,6 @@ LoadClusterChain:
 		push eax	;current cluster
 		;Load Cluster
 		call LoadCluster
-		;Save loaded sectors count
-		add WORD[bp], cx
 		;Restore
 		;previously saved register values
 		pop eax		;current cluster
@@ -109,16 +106,13 @@ LoadClusterChain:
 		;Save
 		;because GetNextCluster will mess up partition's LBA offset and memory buffer
 		push ebx	;partition's LBA offset
-		push ds		;memory buffer segment
-		push si		;memory buffer offset
+		push es		;memory buffer segment
 		;Get next cluster
 		call GetNextCluster
 		;Restore
-		pop si		;memory buffer offset
-		pop ds		;memory buffer segment
+		pop es		;memory buffer segment
 		pop ebx		;partition's LBA offset
 		;Check if we finished
 		cmp eax, 0x0FFFFFF8
 		jl .loop ;if not rerun with the next cluster
-	mov cx, WORD[bp]
 	ret

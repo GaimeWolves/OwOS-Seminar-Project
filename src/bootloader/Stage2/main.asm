@@ -35,9 +35,11 @@ main:
 	GetMemberDWord(ebx,si,PartitionEntry.LBA) ;LBA offset is saved in the partition entry struct in ds:si 
 	push ebx ;Restore when loading the cluster chain
 
-	;set data segment register to 0
+	;set segment registers to 0
 	push 0
 	pop ds
+	push 0
+	pop es
 	;code segment register already contains 0
 
 	;Now interrupt are safe
@@ -49,18 +51,14 @@ main:
 
 	;load to 0x0:KERNEL_LOAD_OFFSET
 	push KERNEL_LOAD_SEGMENT
-	pop ds					;Segment KERNEL_LOAD_SEGMENT
-	mov si, KERNEL_LOAD_OFFSET	;Offset KERNEL_LOAD_OFFSET
+	pop es					;Segment KERNEL_LOAD_SEGMENT
+	mov di, KERNEL_LOAD_OFFSET	;Offset KERNEL_LOAD_OFFSET
 	;Load the sectors of the clusterchain
 	pop ebx	;Restore partition's LBA offset
 	pop dx	;Restore drive number
 
 	;Load cluster chain
 	call LoadClusterChain
-	;Reset data segment and save loaded sectors count
-	push 0x00
-	pop ds		;Set segment to 0
-	mov WORD[KernelSectorCount], cx
 
 	;Enable A20 line
 	call a20EnabledTest
@@ -105,7 +103,6 @@ STACK_POSITION					equ 0xFFFF
 STACK_POSITION_32				equ 0xFFFFFF
 KERNEL_LOAD_SEGMENT				equ 0x1000
 KERNEL_LOAD_OFFSET				equ 0x0000
-KERNEL_ADDRESS					equ 0x100000
 MMAP_SEGMENT					equ 0x0000
 MMAP_OFFSET						equ 0x1000
 MULTIBOOT_ADDRESS				equ 0x0900
@@ -115,7 +112,7 @@ MULTIBOOT_ADDRESS				equ 0x0900
 ;-----------------------------------------
 BootloaderName:					db "Molyload", 0x00
 MMapSize:						dd 0
-FileName:						db "KERNEL  SYS"
+FileName:						db "KERNEL  ELF"
 KernelSectorCount:				dw 0
 UpperMem:						dd 0
 LowerMem:						dd 0
@@ -136,6 +133,11 @@ LowerMem:						dd 0
 
 ;-----------------------------------------
 [bits 32]
+;-----------------------------------------
+;	Includes (32 bits)
+;-----------------------------------------
+%include "./ELF/elf_header.inc"
+
 ;-----------------------------------------
 ;	setup32
 ;	Called with
@@ -165,23 +167,6 @@ setup32:
 ;	DL = drive number				=> Kernel
 ;-----------------------------------------
 main32:
-	;Copy the kernel to its position
-	xor eax, eax
-	xor ecx, ecx
-	mov ax, WORD[KernelSectorCount]				;Get kernel sector count
-	mov cx, WORD[0x7c00 + BPB.BytesPerSector]	;Get bytes per sector
-	mul ecx										;Calculate byte size of kernel
-	mov ecx, eax								;Save it to ecx for use in rep
-
-	;Calculate load address of the kernel
-	mov esi, KERNEL_LOAD_SEGMENT				;Segment needs to be shifted up 4 times
-	shl esi, 4
-	add esi, KERNEL_LOAD_OFFSET					;Add offset
-
-	mov edi, KERNEL_ADDRESS						;Load destination address of the kernel
-
-	rep movsb									;Copy kernel's bytes
-	
 	;Setup multiboot struct
 	mov DWORD[MULTIBOOT_ADDRESS + Multiboot.flags], 0b1001000011			;Activate fields with flags[0,1,6,9]
 
@@ -221,9 +206,17 @@ main32:
 	mov BYTE[MULTIBOOT_ADDRESS + Multiboot.boot_device + boot_device.part2], 0xFF	;Set unused to 0xFF
 	mov BYTE[MULTIBOOT_ADDRESS + Multiboot.boot_device + boot_device.part3], 0xFF	;Set unused to 0xFF
 
+	;Parse ELF
+	mov eax, KERNEL_LOAD_SEGMENT				;Segment needs to be shifted up 4 times
+	shl eax, 4
+	add eax, KERNEL_LOAD_OFFSET					;Add offset
+
+	call SetupELFSections
+	mov edx, eax
+
 	;Set Register for Multiboot
 	mov eax, 0x2BADB002
 	mov ebx, MULTIBOOT_ADDRESS
 
 	;Jump to kernel
-	jmp KERNEL_ADDRESS
+	jmp edx
