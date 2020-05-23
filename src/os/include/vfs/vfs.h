@@ -36,6 +36,7 @@
 #define O_RDWR   0x00000004 // read/write mode
 #define O_APPEND 0x00000008 // append mode (sets write position to SEEK_END before every write)
 #define O_TRUNC  0x00000010 // truncate mode (truncates the filesize to 0 essentialy rewrites file)
+#define O_BIN    0x00000020 // binary mode
 #define O_EOF    0x80000000 // EOF indicator flag
 
 #define BUFSIZ 1024 // Standard complete buffer size (one sector for each buffer)
@@ -58,12 +59,12 @@ struct DIR;
 struct mountpoint_t;
 
 // Define callback functions reffering to the used filesystem driver
-typedef int (*read_callback)(struct file_desc_t *node, size_t offset, int size, char *buf);
-typedef int (*write_callback)(struct file_desc_t *node, size_t offset, int size, char *buf);
+typedef size_t (*read_callback)(struct file_desc_t *node, size_t offset, size_t size, char *buf);
+typedef size_t (*write_callback)(struct file_desc_t *node, size_t offset, size_t size, char *buf);
 typedef int (*readdir_callback)(struct DIR *dirstream);
 typedef struct file_desc_t *(*findfile_callback)(struct file_desc_t *node, char *name);
-typedef struct file_desc_t *(*mkdir_callback)(struct file_desc_t *node, char *name);
-typedef struct file_desc_t *(*mkfile_callback)(struct file_desc_t *node, char *name);
+typedef int (*mkfile_callback)(struct file_desc_t *file);
+typedef int (*rmfile_callback)(struct file_desc_t *file);
 
 // Internal VFS node type
 // Holds information like where the file is located
@@ -76,7 +77,8 @@ typedef struct file_desc_t
 
 	struct mountpoint_t *mount; // Mounted filesystem this file descriptor lies
 
-	struct file_desc_t *link; // Used for symlinks and mountpoints
+	struct file_desc_t *link;   // Used for symlinks and mountpoints
+	struct file_desc_t *parent; // Used to modify underlying directory for this file
 
 	int openWriteDesc; // How often the file is opened in write mode (max. 1)
 	int openReadDesc;  // How often the file is opened in read mode
@@ -86,26 +88,27 @@ typedef struct file_desc_t
 	write_callback write;
 	readdir_callback readdir;
 	findfile_callback findfile;
-	mkdir_callback mkdir;
 	mkfile_callback mkfile;
+	rmfile_callback rmfile;
 } file_desc_t;
 
 // External FILE type
 typedef struct FILE
 {
 	file_desc_t *file_desc; // Internal VFS file descriptor associated with the file
-	uint32_t flags;       // Flags
+	uint32_t flags;         // Flags
+	uint8_t mode;           // Buffering mode
 
-	size_t rdPos; // Position inside file for read operations
-	size_t wrPos; // Position inside file for write operations
+	size_t pos; // Position inside file
 	
 	char *rdBuf; // Read buffer base address
 	char *rdPtr; // Current position in read buffer
-	char *rdEnd; // End of read buffer
+	char *rdFil; // Current end of read buffer
+	char *rdEnd; // Absolute end of read buffer
 
 	char *wrBuf; // write buffer base address
-	char *wrPrt; // Current position in write buffer
-	char *wrEnd; // End of write buffer
+	char *wrPtr; // Current position in write buffer
+	char *wrEnd; // Absolute end of write buffer
 
 	// The complete buffer gets split into one read and/or one write buffer
 	// depending on the mode the file is opened in
@@ -151,17 +154,19 @@ typedef struct mountpoint_t
 
 int initVFS();
 
-FILE* vfsOpen(const char *path, int flags);
+FILE* vfsOpen(const char *path, const char *mode);
 void vfsClose(FILE *file);
 size_t vfsRead(FILE *file, void *buf, size_t size);
 size_t vfsWrite(FILE *file, const void *buf, size_t size);
 
-int vfsSeek(FILE *file, size_t offset, int origin);
+int vfsSeek(FILE *file, long offset, int origin);
 int vfsFlush(FILE *file);
 int vfsSetvbuf(FILE *file, char *buf, int mode, size_t size);
 int vfsRename(char *oldPath, char *newPath);
 int vfsRemove(char *path);
 int vfsMkdir(char *path);
+char *vfsGets(char *str, int count, FILE *stream);
+int vfsPuts(const char *str, FILE *stream);
 
 DIR *vfsOpendir(char *path);
 int vfsCloseDir(DIR *dir);

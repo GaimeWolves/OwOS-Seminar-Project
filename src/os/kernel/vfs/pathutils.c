@@ -22,7 +22,7 @@ char *getPathSubstr(const char *path, size_t index)
 
 	size_t len = strlen(path);
 
-	size_t partIndex = 0;
+	size_t partIndex = len;
 	size_t partLen = 0;
 	size_t count = 0;
 
@@ -32,8 +32,8 @@ char *getPathSubstr(const char *path, size_t index)
 		if (path[i] == '/')
 			count++;
 
-		if (count == index && partIndex == 0)
-			partIndex = i + 1;
+		if (count == index && partIndex == len && path[i] != '/')
+			partIndex = i;
 
 		if (count > index)
 		{
@@ -54,6 +54,9 @@ char *getPathSubstr(const char *path, size_t index)
 // Counts how deep the path goes
 size_t getPathLength(const char *path)
 {
+	if (path[0] == '\0')
+		return 0;
+
 	size_t count = 1; // Root directory is always present
 	size_t len = strlen(path);
 
@@ -70,6 +73,10 @@ size_t getPathLength(const char *path)
 // Removes the first directory entry from the path
 char *rmPathDirectory(char *path)
 {
+	// Path already empty
+	if (path[0] == '\0')
+		return path;
+
 	size_t index = 0;
 	size_t len = strlen(path);
 
@@ -81,10 +88,13 @@ char *rmPathDirectory(char *path)
 			break;
 		}
 	}
-	
-	// Is this the last iteration?
+
+	// Last iteration (only the file remains)
 	if (index == 0)
+	{
+		path[0] = '\0';
 		return path;
+	}
 
 	// Rather use memmove as the memory regions are overlapping
 	memmove((void*)path, (void*)(path + index), len - index + 1);

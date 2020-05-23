@@ -17,6 +17,9 @@
 //				Constants
 //------------------------------------------------------------------------------------------
 
+// Private file flags
+#define ORIGBUF  0x40000000 // Original buffer still present (gets cleared on vfsSetvbuf)
+
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
@@ -48,6 +51,7 @@ static vfs_node_t *root;
 //------------------------------------------------------------------------------------------
 
 static file_desc_t *findfile(vfs_node_t *node, char *path);
+static file_desc_t *createFile(vfs_node_t *node, char *path);
 
 //------------------------------------------------------------------------------------------
 //				Private function implementations
@@ -100,6 +104,11 @@ static file_desc_t *findfile(vfs_node_t *node, char *path)
 
 	kfree(file);
 	return findfile(newNode, path);
+}
+
+static file_desc_t *createFile(vfs_node_t *node, char *path)
+{
+	return NULL;
 }
 
 //------------------------------------------------------------------------------------------
@@ -182,17 +191,337 @@ int initVFS()
 	return 0;
 }
 
-FILE* vfsOpen(const char *path, int flags);
-void vfsClose(FILE *file);
-size_t vfsRead(FILE *file, void *buf, size_t size);
-size_t vfsWrite(FILE *file, const void *buf, size_t size);
+FILE* vfsOpen(const char *path, const char *mode)
+{
+	char *copy = kstrdup(path);
+	rmPathDirectory(copy);
 
-int vfsSeek(FILE *file, size_t offset, int origin);
-int vfsFlush(FILE *file);
-int vfsSetvbuf(FILE *file, char *buf, int mode, size_t size);
-int vfsRename(char *oldPath, char *newPath);
-int vfsRemove(char *path);
-int vfsMkdir(char *path);
+	file_desc_t *desc = findfile(root, copy);
+	
+	strcpy(copy, path);
+	rmPathDirectory(copy);
+
+	// Read mode requires an existing file
+	if (!desc && mode[0] == 'r')
+		return NULL;
+	else if (!desc)
+		desc = createFile(root, copy);
+
+	if (!desc)
+		return NULL;
+
+	// Cannot open a file in write mode more than once
+	if (desc->openWriteDesc > 0 && (mode[0] == 'w' || mode[0] == 'a' || mode[1] == '+'))
+		return NULL;
+
+	// Allocate file
+	FILE *file = kzalloc(sizeof(FILE));
+	file->file_desc = desc;
+
+	// Parse mode
+	size_t len = strlen(mode);
+	switch(mode[0])
+	{
+		case 'r':
+			file->flags |= O_RDONLY;
+			break;
+		case 'w':
+			file->flags |= O_WRONLY | O_TRUNC;
+			break;
+		case 'a':
+			file->flags |= O_WRONLY | O_APPEND;
+			break;
+	}
+
+	if (len == 3) // Both flags present (eg. w+b, wb+, a+b, etc.)
+	{
+		file->flags |= O_BIN;
+		file->flags |= O_RDWR;
+	}
+	else if (len == 2) // Only one flag present (eg. wb or w+)
+	{
+		if (mode[1] == '+')
+			file->flags |= O_RDWR;
+		else
+			file->flags |= O_BIN;
+	}
+
+	// Update read/write counts
+	if (file->flags & O_RDWR)
+	{
+		desc->openReadDesc++;
+		desc->openWriteDesc++;
+	}
+	else if (file->flags & O_RDONLY)
+		desc->openReadDesc++;
+	else if (file->flags & O_WRONLY)
+		desc->openWriteDesc++;
+
+	// Initialize buffers
+	char *ioBuf = kmalloc(BUFSIZ);
+	file->ioBuf = ioBuf;
+	file->ioEnd = file->ioBuf + BUFSIZ;
+	file->rdBuf = file->ioBuf;
+	file->rdPtr = file->rdBuf;
+	file->rdFil = file->rdBuf;
+	file->rdEnd = file->rdBuf + BUFSIZ / 2;
+	file->wrBuf = file->ioBuf + BUFSIZ / 2;
+	file->wrPtr = file->wrBuf;
+	file->wrEnd = file->ioEnd;
+	file->flags |= ORIGBUF;
+
+	// Go to end in append mode
+	if (file->flags & O_APPEND)
+		vfsSeek(file, 0, SEEK_END);
+
+	return file;
+}
+
+void vfsClose(FILE *file)
+{
+	if (!file)
+		return;
+
+	vfsFlush(file);
+
+	// Update read/write counts
+	if (file->flags & O_RDWR)
+	{
+		file->file_desc->openReadDesc--;
+		file->file_desc->openWriteDesc--;
+	}
+	else if (file->flags & O_RDONLY)
+		file->file_desc->openReadDesc--;
+	else if (file->flags & O_WRONLY)
+		file->file_desc->openWriteDesc--;
+
+	if (file->flags & ORIGBUF)
+		kfree(file->ioBuf);
+
+	// TODO: Cleanup node tree
+	
+	kfree(file);
+	return;
+}
+
+size_t vfsRead(FILE *file, void *buf, size_t size)
+{
+	if (!(file->flags & O_RDONLY || file->flags & O_RDWR))
+		return 0;
+
+	char *buffer = (char*)buf;
+
+	size_t read = 0;
+	size_t rdSize = (size_t)(file->rdEnd - file->rdBuf);
+
+	// Read until EOF is reached or specified amount is read
+	while(!(file->flags & O_EOF && file->rdPtr == file->rdFil) && read < size)
+	{
+		for (; file->rdPtr < file->rdFil && read < size; file->rdPtr++, read++)
+			buffer[read] = *file->rdPtr;
+
+		if (file->flags & O_EOF || read >= size)
+			break;
+
+		// Read next portion into buffer
+		file->rdPtr = file->rdBuf;
+		file->rdFil = file->rdBuf;
+
+		size_t amount = file->file_desc->read(file->file_desc, file->pos, rdSize, file->rdBuf);
+		file->pos += amount;
+		file->rdFil += amount;
+
+		// EOF reached
+		if (amount < rdSize)
+			file->flags |= O_EOF;
+	}
+
+	return read;
+}
+
+size_t vfsWrite(FILE *file, const void *buf, size_t size)
+{
+	if (!(file->flags & O_WRONLY || file->flags & O_RDWR))
+		return 0;
+
+	char *buffer = (char*)buf;
+
+	size_t written = 0;
+	size_t wrSize = (size_t)(file->wrEnd - file->wrBuf);
+
+	// Write until buffer is empty
+	while(written < size)
+	{
+		for (; file->wrPtr < file->wrEnd && written < size; file->wrPtr++, written++)
+			*file->wrPtr = buffer[written];
+
+		if (written >= size)
+			break;
+
+		size_t amount = file->file_desc->write(file->file_desc, file->pos, wrSize, file->wrBuf);
+		file->pos += amount;
+		file->wrPtr = file->wrBuf + (wrSize - amount);
+
+		// Move unwritten contents to beginning
+		memcpy(file->wrBuf, file->wrBuf + amount, wrSize - amount);
+
+		if (amount < wrSize)
+			break;
+	}
+
+	return written;
+}
+
+int vfsSeek(FILE *file, long offset, int origin)
+{
+	size_t pos = 0;
+
+	// First flush unwritten data
+	vfsFlush(file);
+	
+	switch(origin)
+	{
+		case SEEK_CUR:
+			pos = file->pos;
+			break;
+		case SEEK_END:
+			pos = file->file_desc->length;
+			break;
+		default:
+			break;
+	}
+
+	// Check if seek results in underflow
+	if (offset < 0 && pos < (size_t)(-offset))
+		pos = -offset; // To end up with zero afterwards
+
+	pos += offset;
+
+	file->pos = pos;
+
+	return 0;
+}
+
+int vfsFlush(FILE *file)
+{
+	if (!(file->flags & O_WRONLY || file->flags & O_RDWR))
+		return EOF;
+
+	size_t wrSize = (size_t)(file->wrPtr - file->wrBuf);
+
+	size_t amount = file->file_desc->write(file->file_desc, file->pos, wrSize, file->wrBuf);
+	file->pos += amount;
+	file->wrPtr = file->wrBuf + (wrSize - amount);
+
+	// Move unwritten contents to beginning
+	memcpy(file->wrBuf, file->wrBuf + amount, wrSize - amount);
+
+	if (amount > 0)
+		file->flags &= ~O_EOF;
+
+	if (amount < wrSize)
+		return EOF;
+
+	file->rdPtr = file->rdBuf;
+	file->rdFil = file->rdBuf;
+
+	return 0;
+}
+
+int vfsSetvbuf(FILE *file, char *buf, int mode, size_t size)
+{
+	if (size < 2 || mode > 2)
+		return -1;
+
+	char *ioBuf = NULL;
+
+	if (!buf)
+		ioBuf = kmalloc(size);
+	else
+		ioBuf = buf;
+
+	if (file->flags & ORIGBUF)
+		kfree(file->ioBuf);
+
+	file->ioBuf = ioBuf;
+	file->ioEnd = file->ioBuf + size;
+	file->rdBuf = file->ioBuf;
+	file->rdPtr = file->rdBuf;
+	file->rdFil = file->rdBuf;
+	file->rdEnd = file->rdBuf + size / 2;
+	file->wrBuf = file->ioBuf + size / 2;
+	file->wrPtr = file->wrBuf;
+	file->wrEnd = file->ioEnd;
+
+	if (buf)
+		file->flags &= ~ORIGBUF;
+
+	file->mode = mode;
+
+	return 0;
+}
+
+int vfsRename(char *oldPath, char *newPath)
+{
+	return 0;
+}
+
+int vfsRemove(char *path)
+{
+	return 0;
+}
+
+int vfsMkdir(char *path)
+{
+	return 0;
+}
+
+// Read single chars from the stream until EOF or newline
+char *vfsGets(char *str, int count, FILE *stream)
+{
+	if (count < 1)
+		return NULL;
+
+	if (count == 1)
+	{
+		str[0] = '\0';
+		return str;
+	}
+
+	int index = 0;
+	char buf;
+
+	while(vfsRead(stream, &buf, 1) && index < count - 1)
+	{
+		str[index++] = buf;
+		if (buf == '\n')
+			break;
+	}
+
+	if (index == 0)
+		return NULL;
+
+	str[index] = '\0';
+
+	return str;
+}
+
+int vfsPuts(const char *str, FILE *stream)
+{
+	if (!str)
+		return EOF;
+
+	int index = 0;
+
+	// Write every char
+	while(str[index] != '\0')
+	{
+		if (!vfsWrite(stream, str + index++, 1))
+			return EOF;
+	}
+
+	return 0;
+}
 
 DIR *vfsOpendir(char *path)
 {

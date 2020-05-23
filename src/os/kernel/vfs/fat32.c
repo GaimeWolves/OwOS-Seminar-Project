@@ -20,6 +20,22 @@
 #define LOWERCASE_EXT  0x08
 #define LOWERCASE_BASE 0x04
 
+// Attribute flags
+#define READ_ONLY 0x01
+#define HIDDEN    0x02
+#define SYSTEM    0x04
+#define VOLUME_ID 0x08
+#define DIRECTORY 0x10
+#define ARCHIVE   0x20
+
+// Constants
+#define LFN_ENTRY     0x0F       // LFN entry identifier
+#define UNUSED        0xE5       // Unused directory entry
+#define FAT_MASK      0x0FFFFFFF // Mask for FAT entries
+#define CLUSTER_LIMIT 0x0FFFFFF7 // First invalid cluster number
+#define READ          false
+#define WRITE         true
+
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
@@ -176,8 +192,7 @@ typedef struct dir_chain_t
 //------------------------------------------------------------------------------------------
 
 static inline uint32_t cluster(dir_entry_t *entry);
-
-static uint8_t calcChecksum(const dir_entry_t *entry);
+static uint8_t calcChecksum(const char *name);
 
 static void deleteClusterChain(cluster_chain_t *chain);
 static void deleteDirectoryChain(dir_chain_t *chain);
@@ -186,13 +201,27 @@ static void deleteLFNChain(lfn_chain_t *chain);
 static uint32_t getClusterSector(mountpoint_t *metadata, uint32_t cluster);
 static cluster_chain_t *getChain(mountpoint_t *metadata, uint32_t first);
 static size_t getClusterCount(cluster_chain_t *chain);
-static int readCluster(void* buf, mountpoint_t *metadata, cluster_chain_t *chain, uint32_t offset);
+static int doClusterOperation(void* buf, mountpoint_t *metadata, cluster_chain_t *chain, uint32_t offset, bool write);
+static int removeCluster(cluster_chain_t *chain, mountpoint_t *metadata);
+static cluster_chain_t *addCluster(cluster_chain_t *chain, mountpoint_t *metadata);
+static cluster_chain_t *createChain(mountpoint_t *metadata, size_t size);
+static int shrinkChain(mountpoint_t *metadata, cluster_chain_t *chain, size_t newSize);
 
 static dir_chain_t *parseDirectory(file_desc_t *file);
 static char *getFullName(dir_entry_t *entry, lfn_chain_t *lfn);
 static void addLFNEntry(lfn_chain_t **chain, lfn_entry_t *entry);
 static char *parseShortName(dir_entry_t *entry);
 static char *parseLongName(dir_entry_t *entry, lfn_chain_t *lfn);
+static int removeDirectoryEntry(file_desc_t *dir, char *origName, uint32_t inode);
+static int addDirectoryEntry(file_desc_t *dir, file_desc_t *file);
+static int updateDirectoryEntry(file_desc_t *dir, file_desc_t *file, char *origName);
+static char* toShortName(char *name);
+static dir_entry_t toDirEntry(file_desc_t *file);
+static lfn_entry_t toLFNEntry(file_desc_t *file, int index);
+
+static file_desc_t *createFile(file_desc_t *root, dir_chain_t *direntry);
+
+static size_t doFileOperation(file_desc_t *file, size_t offset, size_t size, char *buf, bool write);
 
 //------------------------------------------------------------------------------------------
 //				Private function implementations
@@ -205,9 +234,9 @@ static inline uint32_t cluster(dir_entry_t *entry)
 
 // Calculates the cecksum present on long file name entries
 // from the 8.3 filename
-static uint8_t calcChecksum(const dir_entry_t *entry)
+static uint8_t calcChecksum(const char *name)
 {
-	uint8_t *filename = (uint8_t*)&entry->name;
+	uint8_t *filename = (uint8_t*)name;
 
 	uint8_t sum = 0;
 
@@ -279,7 +308,7 @@ static cluster_chain_t *getChain(mountpoint_t *metadata, uint32_t first)
 {
 	fat32_metadata_t *data = ((fat32_metadata_t*)metadata->metadata);
 
-	cluster_chain_t *chain = kmalloc(sizeof(cluster_chain_t));
+	cluster_chain_t *chain = kzalloc(sizeof(cluster_chain_t));
 	chain->index = first;
 
 	cluster_chain_t *current = chain;
@@ -300,13 +329,13 @@ static cluster_chain_t *getChain(mountpoint_t *metadata, uint32_t first)
 		}
 
 		// Read the cluster value and mask upper 4 bits
-		uint32_t value = *(uint32_t*)&table[sectorOffset] & 0x0FFFFFFF;
+		uint32_t value = *(uint32_t*)&table[sectorOffset] & FAT_MASK;
 		current->value = value;
 
-		if (value > 0x1 && value < 0x0FFFFFF7)
+		if (value > 0x1 && value < CLUSTER_LIMIT)
 		{
 			// Add new cluster to chain
-			cluster_chain_t *next = kmalloc(sizeof(cluster_chain_t));
+			cluster_chain_t *next = kzalloc(sizeof(cluster_chain_t));
 			current->next = next;
 			next->index = value;
 			next->next = NULL;
@@ -317,6 +346,192 @@ static cluster_chain_t *getChain(mountpoint_t *metadata, uint32_t first)
 	}
 
 	return chain;
+}
+
+static int removeCluster(cluster_chain_t *chain, mountpoint_t *metadata)
+{
+	fat32_metadata_t *data = ((fat32_metadata_t*)metadata->metadata);
+	
+	cluster_chain_t *last = chain;
+	for(; last->next; last = last->next);
+	
+	cluster_chain_t *prev = NULL;
+	if (last != chain)
+		for(prev = chain; prev->next != last; prev = prev->next);
+
+	uint8_t table[data->bpb->bytesPerSector];
+	
+	uint32_t offset = last->index * 4;
+	uint32_t sector = data->firstFATSector + (offset / data->bpb->bytesPerSector);
+	uint32_t sectorOffset = offset % data->bpb->bytesPerSector;
+
+	if (ataRead((void*)table, sector, 1, metadata->partition->device))
+		return EOF;
+
+	*(uint32_t*)&table[sectorOffset] = 0;
+
+	if (ataWrite((void*)table, sector, 1, metadata->partition->device))
+		return EOF;
+
+	if (prev)
+	{
+		prev->next = NULL;
+		prev->value = 0x0FFFFFFF;
+
+		offset = prev->index * 4;
+		sector = data->firstFATSector + (offset / data->bpb->bytesPerSector);
+		sectorOffset = offset % data->bpb->bytesPerSector;
+
+		if (ataRead((void*)table, sector, 1, metadata->partition->device))
+			return EOF;
+
+		*(uint32_t*)&table[sectorOffset] = 0x0FFFFFFF;
+
+		if (ataWrite((void*)table, sector, 1, metadata->partition->device))
+			return EOF;
+	}
+
+	kfree(last);
+
+	return 0;
+}
+
+static cluster_chain_t *addCluster(cluster_chain_t *chain, mountpoint_t *metadata)
+{
+	fat32_metadata_t *data = ((fat32_metadata_t*)metadata->metadata);
+
+	cluster_chain_t *last = chain;
+	if (last)
+		for (; last->next; last = last->next);
+
+	uint8_t table[data->bpb->bytesPerSector];
+	uint32_t count = data->bpb->sectorCount == 0 ? data->bpb->largeSectorCount : data->bpb->sectorCount;
+	uint32_t sector = 0, offset = 0, newSector = 0;
+
+	cluster_chain_t *new = NULL;
+
+	for (uint32_t cluster = 2; cluster < count / data->bpb->sectorsPerCluster; cluster++)
+	{
+		offset = cluster * 4;
+		newSector = data->firstFATSector + (offset / data->bpb->bytesPerSector);
+
+		// Read new sector
+		if (newSector != sector)
+		{
+			sector = newSector;
+			 
+			if (ataRead((void*)table, sector, 1, metadata->partition->device))
+			{
+				debug_set_color(0x0C, 0x00);
+				debug_print("Couldn't read fat sector");
+				debug_set_color(0x0F, 0x00);
+				return NULL;
+			}
+		}
+
+		uint32_t sectorOffset = offset % data->bpb->bytesPerSector;
+		uint32_t value = *(uint32_t*)&table[sectorOffset] & FAT_MASK;
+
+		if (value == 0) // Free cluster
+		{
+			*(uint32_t*)&table[sectorOffset] = 0x0FFFFFFF;
+
+			new = kzalloc(sizeof(cluster_chain_t));
+			new->value = 0x0FFFFFFF;
+			new->index = cluster;
+
+			if (ataWrite((void*)table, sector, 1, metadata->partition->device))
+			{
+				debug_set_color(0x0C, 0x00);
+				debug_print("Couldn't write new cluster");
+				debug_set_color(0x0F, 0x00);
+				kfree(new);
+				return NULL;
+			}
+
+			if (!last) // No chain to update
+			{
+				chain = new;
+				break;
+			}
+
+			last->value = cluster;
+			last->next = new;
+
+			offset = last->index * 4;
+			sector = data->firstFATSector + (offset / data->bpb->bytesPerSector);
+			sectorOffset = offset % data->bpb->bytesPerSector;
+
+			if (ataRead((void*)table, sector, 1, metadata->partition->device))
+			{
+				debug_set_color(0x0C, 0x00);
+				debug_print("Couldn't read fat sector");
+				debug_set_color(0x0F, 0x00);
+				kfree(new);
+				return NULL;
+			}
+
+			*(uint32_t*)&table[sectorOffset] = last->value;
+
+			if (ataWrite((void*)table, sector, 1, metadata->partition->device))
+			{
+				debug_set_color(0x0C, 0x00);
+				debug_print("Couldn't write new cluster");
+				debug_set_color(0x0F, 0x00);
+				kfree(new);
+				return NULL;
+			}
+		}
+	}
+
+	if (new)
+	{
+		// Clear new cluster as complications can occur with directory parsing
+		char *cluster = kzalloc(data->bytesPerCluster);
+		doClusterOperation(cluster, metadata, chain, getClusterCount(chain) - 1, WRITE);
+		kfree(cluster);
+	}
+
+	return chain;
+}
+
+static cluster_chain_t *createChain(mountpoint_t *metadata, size_t size)
+{
+	if (size == 0)
+		return NULL;
+
+	fat32_metadata_t *data = (fat32_metadata_t*)metadata->metadata;
+
+	size_t count = (size + data->bytesPerCluster - 1) / data->bytesPerCluster - 1;
+	cluster_chain_t *chain = addCluster(NULL, metadata);
+
+	if (!chain)
+		return NULL;
+
+	for (; count > 0; count--)
+	{
+		if (!addCluster(chain, metadata))
+		{
+			shrinkChain(metadata, chain, 0); // Delete chain again
+			return NULL;
+		}
+	}
+
+	return chain;
+}
+
+static int shrinkChain(mountpoint_t *metadata, cluster_chain_t *chain, size_t newSize)
+{
+	fat32_metadata_t *data = (fat32_metadata_t*)metadata->metadata;
+	
+	size_t currentCount = getClusterCount(chain);
+	size_t newCount = (newSize + data->bytesPerCluster - 1) / data->bytesPerCluster;
+
+	for (size_t i = currentCount - 1; i >= newCount; i--)
+		if(removeCluster(chain, metadata))
+			return EOF;
+
+	return 0;
 }
 
 // Get the amount of clusters of the chain
@@ -335,7 +550,7 @@ static size_t getClusterCount(cluster_chain_t *chain)
 	return len;
 }
 
-static int readCluster(void* buf, mountpoint_t *metadata, cluster_chain_t *chain, uint32_t offset)
+static int doClusterOperation(void* buf, mountpoint_t *metadata, cluster_chain_t *chain, uint32_t offset, bool write)
 {
 	// Past the last cluster
 	if (offset >= getClusterCount(chain))
@@ -348,12 +563,26 @@ static int readCluster(void* buf, mountpoint_t *metadata, cluster_chain_t *chain
 
 	// Read the cluster into memory
 	fat32_metadata_t *data = (fat32_metadata_t*)metadata->metadata;
-	if (ataRead(buf, getClusterSector(metadata, current->index), data->bpb->sectorsPerCluster, metadata->partition->device))
+	
+	if (write)
 	{
-		debug_set_color(0x0C, 0x00);
-		debug_printf("Couldn't read cluster %u", current->index);
-		debug_set_color(0x0F, 0x00);
-		return -2;
+		if (ataWrite(buf, getClusterSector(metadata, current->index), data->bpb->sectorsPerCluster, metadata->partition->device))
+		{
+			debug_set_color(0x0C, 0x00);
+			debug_printf("Couldn't write cluster %u", current->index);
+			debug_set_color(0x0F, 0x00);
+			return -2;
+		}
+	}
+	else
+	{
+		if (ataRead(buf, getClusterSector(metadata, current->index), data->bpb->sectorsPerCluster, metadata->partition->device))
+		{
+			debug_set_color(0x0C, 0x00);
+			debug_printf("Couldn't read cluster %u", current->index);
+			debug_set_color(0x0F, 0x00);
+			return -2;
+		}
 	}
 
 	return 0;
@@ -367,17 +596,9 @@ static dir_chain_t *parseDirectory(file_desc_t *file)
 	fat32_metadata_t *metadata = (fat32_metadata_t*)file->mount->metadata;
 
 	uint8_t* buf = kmalloc(metadata->bytesPerCluster);
-	uint32_t offset = 0;
-	int cluster = 0;
+	uint32_t offset = metadata->bytesPerCluster;
+	int cluster = -1;
 	
-	if (readCluster(buf, file->mount, chain, 0))
-	{
-		debug_set_color(0x0C, 0x00);
-		debug_print("Directory is corrupted or couldn't be read");
-		debug_set_color(0x0F, 0x00);
-		return NULL;
-	}
-
 	lfn_chain_t *lfn = NULL;
 	dir_chain_t *dir = NULL;
 	dir_chain_t *current = NULL;
@@ -391,7 +612,7 @@ static dir_chain_t *parseDirectory(file_desc_t *file)
 			offset = 0;
 			cluster++;
 			
-			int ret = readCluster(buf, file->mount, chain, cluster);
+			int ret = doClusterOperation(buf, file->mount, chain, cluster, READ);
 			if (ret == EOF)
 				break;
 
@@ -411,12 +632,12 @@ static dir_chain_t *parseDirectory(file_desc_t *file)
 
 		if (buf[offset] == 0) // No more entries
 			break;
-		else if (buf[offset] == 0xE5) // Unused entry
+		else if (buf[offset] == UNUSED)
 		{
 			offset += sizeof(dir_entry_t);
 			continue;
 		}
-		else if (buf[offset + 11] == 0x0F) // Long file name entrie
+		else if (buf[offset + 11] == LFN_ENTRY)
 		{
 			lfn_entry_t *lfnEntry = (lfn_entry_t*)&buf[offset];
 			addLFNEntry(&lfn, lfnEntry);
@@ -450,6 +671,345 @@ static dir_chain_t *parseDirectory(file_desc_t *file)
 	kfree(buf);
 
 	return dir;
+}
+
+static int removeDirectoryEntry(file_desc_t *dir, char *origName, uint32_t inode)
+{
+	char *shortName = toShortName(origName);
+	uint8_t checksum = calcChecksum(shortName);
+
+	fat32_metadata_t *metadata = (fat32_metadata_t*)dir->mount->metadata;
+	cluster_chain_t *chain = getChain(dir->mount, dir->inode);
+	
+	uint8_t* buf = kmalloc(metadata->bytesPerCluster);
+	int currentCluster = -1;
+	uint32_t offset = metadata->bytesPerCluster;
+
+	int beginCluster = -1, beginOffset = 0; // Offset of the first fitting lfn entry
+
+	while(true)
+	{
+		// Read next cluster into buffer
+		if (offset >= metadata->bytesPerCluster)
+		{
+			offset = 0;
+			currentCluster++;
+			
+			int ret = doClusterOperation(buf, dir->mount, chain, currentCluster, READ);
+			if (ret == EOF)
+				break;
+
+			if (ret)
+			{
+				debug_set_color(0x0C, 0x00);
+				debug_print("Directory is corrupted or couldn't be read");
+				debug_set_color(0x0F, 0x00);
+
+				kfree(buf);
+				deleteClusterChain(chain);
+				kfree(shortName);
+				return EOF;
+			}
+		}
+
+		if (buf[offset] == 0) // No more entries
+			break;
+		else if (buf[offset] == UNUSED)
+		{
+			offset += sizeof(dir_entry_t);
+			continue;
+		}
+		else if (buf[offset + 11] == LFN_ENTRY)
+		{
+			lfn_entry_t *lfnEntry = (lfn_entry_t*)&buf[offset];
+			if (checksum == lfnEntry->checksum)
+			{
+				if (beginCluster == -1)
+				{
+					beginCluster = currentCluster;
+					beginOffset = offset;
+				}
+			}
+		}
+		else // Normal directory entry
+		{
+			dir_entry_t *entry = (dir_entry_t*)&buf[offset];
+
+			if (calcChecksum(entry->name) == checksum && inode == cluster(entry))
+			{
+				if (beginCluster != -1)
+				{
+					for (int i = currentCluster; i >= beginCluster; i--)
+					{
+						doClusterOperation(buf, dir->mount, chain, i, READ);
+
+						int start = i == beginCluster ? beginOffset : 0;
+						int end = i == currentCluster ? offset : metadata->bytesPerCluster;
+
+						for (int j = start; j <= end; j += sizeof(dir_entry_t))
+							buf[j] = UNUSED;
+
+						doClusterOperation(buf, dir->mount, chain, i, WRITE);
+					
+						kfree(buf);
+						deleteClusterChain(chain);
+						kfree(shortName);
+						return 0;
+					}
+				}
+				else
+				{
+					buf[offset] = UNUSED;
+					doClusterOperation(buf, dir->mount, chain, currentCluster, WRITE);
+					
+					kfree(buf);
+					deleteClusterChain(chain);
+					kfree(shortName);
+					return 0;
+				}
+			}
+
+			beginCluster = -1;
+			beginOffset = 0;
+		}
+		
+		offset += sizeof(dir_entry_t);
+	}
+
+	kfree(buf);
+	deleteClusterChain(chain);
+	kfree(shortName);
+	return EOF;
+}
+
+static int addDirectoryEntry(file_desc_t *dir, file_desc_t *file)
+{
+	char *shortName = toShortName(file->name);
+
+	int count = ((strlen(file->name) + 1) + 13 - 1) / 13; // Needed LFN entry count
+
+	fat32_metadata_t *metadata = (fat32_metadata_t*)dir->mount->metadata;
+	cluster_chain_t *chain = getChain(dir->mount, dir->inode);
+	
+	uint8_t* buf = kmalloc(metadata->bytesPerCluster);
+	int currentCluster = -1;
+	uint32_t offset = metadata->bytesPerCluster;
+
+	int beginCluster = -1, beginOffset = 0; // Offset of the first empty entry
+	int numEntries = 0;                     // Number of free entries
+
+	while(true)
+	{
+		// Read next cluster into buffer
+		if (offset >= metadata->bytesPerCluster)
+		{
+			offset = 0;
+			currentCluster++;
+
+			if ((size_t)currentCluster >= getClusterCount(chain))
+			{
+				if (addCluster(chain, dir->mount))
+				{
+					debug_set_color(0x0C, 0x00);
+					debug_print("Couldn't allocate Cluster! Partition may be full!");
+					debug_set_color(0x0F, 0x00);
+
+					kfree(buf);
+					deleteClusterChain(chain);
+					kfree(shortName);
+					return EOF;
+				}
+			}
+
+			int ret = doClusterOperation(buf, dir->mount, chain, currentCluster, READ);
+			if (ret == EOF)
+				break;
+
+			if (ret)
+			{
+				debug_set_color(0x0C, 0x00);
+				debug_print("Directory is corrupted or couldn't be read");
+				debug_set_color(0x0F, 0x00);
+
+				kfree(buf);
+				deleteClusterChain(chain);
+				kfree(shortName);
+				return EOF;
+			}
+		}
+
+		if (buf[offset] == 0 || buf[offset] == UNUSED)
+		{
+			if (beginCluster == -1)
+			{
+				beginCluster = currentCluster;
+				beginOffset = offset;
+				numEntries = 0;
+			}
+
+			numEntries++;
+		}
+		else // Used entry
+			beginCluster = -1;
+
+		if (numEntries == count + 1)
+		{
+			currentCluster = beginCluster;
+			offset = beginOffset;
+
+			doClusterOperation(buf, dir->mount, chain, beginCluster, READ);
+
+			for(int i = 0; i < numEntries; i++, offset += sizeof(dir_entry_t))
+			{
+				if (offset >= metadata->bytesPerCluster)
+				{
+					doClusterOperation(buf, dir->mount, chain, currentCluster, WRITE);
+					offset = 0;
+					currentCluster++;
+					doClusterOperation(buf, dir->mount, chain, currentCluster, READ);
+				}
+
+				if (i == count) // Write 8.3 entry
+				{
+					dir_entry_t entry = toDirEntry(file);
+					*(dir_entry_t*)&buf[offset] = entry;
+				}
+				else            // Write LFN entry
+				{
+					lfn_entry_t entry = toLFNEntry(file, count - i);
+					*(lfn_entry_t*)&buf[offset] = entry;
+				}
+			}
+
+			doClusterOperation(buf, dir->mount, chain, currentCluster, WRITE);
+
+			kfree(buf);
+			deleteClusterChain(chain);
+			kfree(shortName);
+			return 0;
+		}
+
+		offset += sizeof(dir_entry_t);
+	}
+
+	kfree(buf);
+	deleteClusterChain(chain);
+	kfree(shortName);
+	return EOF;
+}
+
+static int updateDirectoryEntry(file_desc_t *dir, file_desc_t *file, char *origName)
+{
+	// Rewrite entry
+	if(removeDirectoryEntry(dir, origName, file->inode))
+		return EOF;
+
+	if(addDirectoryEntry(dir, file))
+		return EOF;
+
+	return 0;
+}
+
+static dir_entry_t toDirEntry(file_desc_t *file)
+{
+	dir_entry_t entry;
+	memset(&entry, 0, sizeof(dir_entry_t));
+
+	char *name = toShortName(file->name);
+	memcpy(entry.name, name, 11);
+	kfree(name);
+
+	entry.attributes = file->flags & FS_DIRECTORY ? DIRECTORY : 0;
+	entry.clusterHigh = file->inode >> 16;
+	entry.clusterLow = file->inode & 0xFFFF;
+	entry.size = file->length;
+
+	return entry;
+}
+
+static lfn_entry_t toLFNEntry(file_desc_t *file, int index)
+{
+	char* shortName = toShortName(file->name);
+	uint8_t checksum = calcChecksum(shortName);
+	kfree(shortName);
+
+	lfn_entry_t entry;
+	memset(&entry, 0, sizeof(lfn_entry_t));
+
+	for(int i = 0; i < 13; i++)
+	{
+		if (i >= 11)
+			entry.wchar3[i - 11] = 0xFFFF;
+		else if (i >= 5)
+			entry.wchar2[i - 5] = 0xFFFF;
+		else
+			entry.wchar1[i] = 0xFFFF;
+	}
+
+	entry.index = (uint8_t)index;
+	entry.checksum = checksum;
+	entry.signature = 0xF;
+
+	bool last = false;
+
+	for (int i = 0; i < 13; i++)
+	{
+		uint16_t value = (uint16_t)file->name[(index - 1) * 13 + i];
+
+		if (i >= 11)
+			entry.wchar3[i - 11] = value;
+		else if (i >= 5)
+			entry.wchar2[i - 5] = value;
+		else
+			entry.wchar1[i] = value;
+
+		if (value == 0)
+		{
+			last = true;
+			break;
+		}
+	}
+
+	if (last)
+		entry.index |= 0x40; // Last LFN entry
+
+	return entry;
+}
+
+static char* toShortName(char *name)
+{
+	char *shortName = kmalloc(11);
+
+	for (int i = 0; i < 11; i++)
+		shortName[i] = ' ';
+
+	int len = strlen(name);
+	int dotIndex = 0;
+
+	// May have extenstion
+	if (len > 2)
+	{
+		for (int i = len - 1; i >= 0; i--)
+		{
+			if (name[i] == '.')
+			{
+				dotIndex = i;
+				break;
+			}
+		}
+	}
+
+	int index = 0;
+
+	for (int i = 0; i < dotIndex && index < 8; i++)
+		shortName[index++] = toupper(name[i]);
+
+	index = 8;
+
+	for (int i = dotIndex + 1; i < len && index < 11; i++)
+		shortName[index++] = toupper(name[i]);
+
+	return shortName;
 }
 
 // Get the full name for the file
@@ -544,29 +1104,53 @@ static void addLFNEntry(lfn_chain_t **chain, lfn_entry_t *entry)
 // Parses the 8.3 filename of the directory entry
 static char *parseShortName(dir_entry_t *entry)
 {
+	int nameLength = 8;
+	for (int i = 7; i >= 0; i--)
+	{
+		// Name fields are padded with spaces
+		if (entry->name[i] != ' ')
+			break;
+
+		nameLength--;
+	}
+
+	int extLength = 3;
+	for (int i = 2; i >= 0; i--)
+	{
+		if (entry->extension[i] != ' ')
+			break;
+
+		extLength--;
+	}
+
 	// 11 chars + dot + null byte
-	char *fullname = kmalloc(13);
+	char *fullname = kmalloc(nameLength + extLength + 1 + (extLength > 0 ? 1 : 0));
 
 	// Copy entry name to full name buffer
-	for (int i = 0; i < 8; i++)
+	for (int i = 0; i < nameLength; i++)
 		fullname[i] = entry->name[i];
 
-	fullname[8] = '.';
+	if (extLength > 0)
+	{
+		fullname[nameLength] = '.';
+		
+		for (int i = 0; i < extLength; i++)
+			fullname[nameLength + 1 + i] = entry->extension[i];
 
-	for (int i = 0; i < 3; i++)
-		fullname[9 + i] = entry->extension[i];
-
-	fullname[12] = 0;
+		fullname[nameLength + extLength + 1] = '\0';
+	}
+	else
+		fullname[nameLength] = '\0';
 
 	// Apply special filename types from Windows NT
 	if (entry->nametype == LOWERCASE_EXT)
 	{
-		for (int i = 0; i < 3; i++)
-			fullname[9 + i] = tolower(fullname[9 + i]);
+		for (int i = 0; i < extLength; i++)
+			fullname[nameLength + 1 + i] = tolower(fullname[9 + i]);
 	}
 	else if (entry->nametype == LOWERCASE_BASE)
 	{
-		for (int i = 0; i < 8; i++)
+		for (int i = 0; i < nameLength; i++)
 			fullname[i] = tolower(fullname[i]);
 	}
 
@@ -577,7 +1161,7 @@ static char *parseShortName(dir_entry_t *entry)
 static char *parseLongName(dir_entry_t *entry, lfn_chain_t *lfn)
 {
 	int lenght = 0;
-	uint8_t checksum = calcChecksum(entry);
+	uint8_t checksum = calcChecksum(entry->name);
 
 	// Count entries
 	for (lfn_chain_t *current = lfn; current; current = current->next)
@@ -617,18 +1201,141 @@ static char *parseLongName(dir_entry_t *entry, lfn_chain_t *lfn)
 	return fullname;
 }
 
+// Creates a file descriptor describing the file declared in the directory entry
+static file_desc_t *createFile(file_desc_t *root, dir_chain_t *direntry)
+{
+	file_desc_t *file = kzalloc(sizeof(file_desc_t));
+
+	if (direntry->entry.attributes & DIRECTORY)
+	{
+		file->flags = FS_DIRECTORY;
+		file->findfile = (findfile_callback)findfileFAT32;
+		file->mkfile = (mkfile_callback)mkfileFAT32;
+		file->rmfile = (rmfile_callback)rmfileFAT32;
+		file->readdir = (readdir_callback)readdirFAT32;
+		file->length = 0;
+	}
+	else
+	{
+		file->flags = FS_FILE;
+		file->read = (read_callback)readFAT32;
+		file->write = (write_callback)writeFAT32;
+		file->length = direntry->entry.size;
+	}
+
+	file->parent = root;
+	file->mount = root->mount;
+	file->inode = cluster(&direntry->entry);
+	strcpy(file->name, direntry->fullname);
+
+	return file;
+}
+
+static size_t doFileOperation(file_desc_t *file, size_t offset, size_t size, char *buf, bool write)
+{
+	if (size == 0 || offset > file->length)
+		return 0;
+
+	cluster_chain_t *chain = getChain(file->mount, file->inode);
+	fat32_metadata_t *metadata = (fat32_metadata_t*)file->mount->metadata;
+	uint32_t bpc = metadata->bytesPerCluster;
+	
+	if (size > file->length - offset)
+	{
+		if (write)
+		{
+			int toAllocate = (((offset + size) + bpc - 1) / bpc) - getClusterCount(chain);
+
+			for (; toAllocate > 0; toAllocate--)
+			{
+				if (addCluster(chain, file->mount))
+				{
+					debug_set_color(0x0C, 0x00);
+					debug_print("The partition is full! Could'nt allocate a new cluster!");
+					debug_set_color(0x0F, 0x00);
+					return 0;
+				}
+			}
+
+			file->length = offset + size;
+			// Update directory entry
+		}
+		else // Limit read amount
+			size = file->length - offset;
+	}
+	
+	uint32_t first = offset / bpc;
+	uint32_t count = ((offset + size) + bpc - 1) / bpc - first;
+	uint32_t last = first + (count - 1);
+
+	if (first >= getClusterCount(chain))
+		return 0;
+
+	if (last >= getClusterCount(chain))
+		last = getClusterCount(chain) - 1;
+
+	int index = 0;
+	int start, end, amount;
+
+	char *tmpBuf = kmalloc(metadata->bytesPerCluster);
+	
+	for (uint32_t i = first; i <= last; i++)
+	{
+
+		// Calculate offsets
+		start = i == first ? (offset % bpc) : 0;
+		end = i == last ? ((offset + size) % bpc) : bpc;
+		if (end == 0)
+			end = bpc;
+
+		amount = end - start;
+
+		if (write)
+		{
+			memcpy(tmpBuf + start, buf + index, amount);
+			if (doClusterOperation(tmpBuf, file->mount, chain, i, WRITE))
+			{
+				debug_set_color(0x0C, 0x00);
+				debug_print("Failed to read cluster");
+				debug_set_color(0x0F, 0x00);
+				return index;
+			}
+		}
+		else
+		{
+			if (doClusterOperation(tmpBuf, file->mount, chain, i, READ))
+			{
+				debug_set_color(0x0C, 0x00);
+				debug_print("Failed to read cluster");
+				debug_set_color(0x0F, 0x00);
+				return index;
+			}
+			memcpy(buf + index, tmpBuf + start, amount);
+		}
+
+		index += amount;
+	}
+
+	kfree(tmpBuf);
+
+	if (write) // Write may change file length data
+		updateDirectoryEntry(file->parent, file, file->name);
+
+	return index;
+}
+
 //------------------------------------------------------------------------------------------
 //				Public function implementations
 //------------------------------------------------------------------------------------------
 
-int readFAT32(file_desc_t *node, size_t offset, int size, char *buf)
+size_t readFAT32(file_desc_t *node, size_t offset, size_t size, char *buf)
 {
-	return 0;
+	return doFileOperation(node, offset, size, buf, READ);
 }
 
-int writeFAT32(file_desc_t *node, size_t offset, int size, char *buf)
+size_t writeFAT32(file_desc_t *node, size_t offset, size_t size, char *buf)
 {
-	return 0;
+	return doFileOperation(node, offset, size, buf, WRITE);
 }
 
 int readdirFAT32(DIR *dirstream)
@@ -663,16 +1370,41 @@ int readdirFAT32(DIR *dirstream)
 
 file_desc_t *findfileFAT32(file_desc_t *node, char *name)
 {
+	dir_chain_t *directory = parseDirectory(node);
+
+	for (dir_chain_t *current = directory; current; current = current->next)
+		if (strcmp(current->fullname, name) == 0)
+			return createFile(node, current);
+
 	return 0;
 }
 
-file_desc_t *mkdirFAT32(file_desc_t *node, char *name)
+int mkfileFAT32(file_desc_t *file)
 {
+	cluster_chain_t *fileChain = createChain(file->mount, 1);
+
+	if (!fileChain)
+		return EOF;
+
+	file->length = 0;
+	file->inode = fileChain->index;
+
+	if(addDirectoryEntry(file->parent, file))
+		return EOF;
+
 	return 0;
 }
 
-file_desc_t *mkfileFAT32(file_desc_t *node, char *name)
+int rmfileFAT32(file_desc_t *file)
 {
+	cluster_chain_t *chain = getChain(file->mount, file->inode);
+	
+	if (shrinkChain(file->mount, chain, 0))
+		return EOF;
+
+	if (removeDirectoryEntry(file->parent, file->name, file->inode))
+		return EOF;
+
 	return 0;
 }
 
@@ -712,6 +1444,8 @@ mountpoint_t *mountFAT32(partition_t *partition)
 	// Create root file descriptor
 	file_desc_t *rootdir = kzalloc(sizeof(file_desc_t));
 	rootdir->flags = FS_DIRECTORY;
+	rootdir->length = 0;
+	rootdir->parent = NULL;
 	rootdir->mount = mount; // Save mount metadata
 	rootdir->inode = bpb->ebpb.rootcluster;
 	rootdir->findfile = (findfile_callback)findfileFAT32;
@@ -724,11 +1458,6 @@ mountpoint_t *mountFAT32(partition_t *partition)
 	mount->root = rootdir;
 	mount->metadata = (uintptr_t)metadata;
 	mount->unmount = (unmount_callback)unmountFAT32;
-
-	// Get size of root directory
-	cluster_chain_t *rootchain = getChain(mount, rootdir->inode);
-	rootdir->length = getClusterCount(rootchain) * bpb->bytesPerSector;
-	deleteClusterChain(rootchain);
 
 	return mount;
 }
