@@ -15,5 +15,6 @@ char *getPathSubstr(const char *path, size_t index);
 size_t getPathLength(const char *path);
 char *rmPathDirectory(char *path);
 char *getPathFile(const char *path);
+char *getPathDir(const char *path);
 
 #endif // _PATHUTILS_H

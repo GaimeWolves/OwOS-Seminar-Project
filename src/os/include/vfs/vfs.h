@@ -47,6 +47,10 @@
 #define FS_SYMLINK     0x04
 #define FS_MOUNTPOINT  0x08 // Is the file an active mountpoint?
 
+// Dirent flags
+#define DT_DIR 0x01 // Directory
+#define DT_REG 0x02 // Regular file
+
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
@@ -119,8 +123,9 @@ typedef struct FILE
 // Directory entry type
 typedef struct dirent
 {
-	char name[FILENAME_MAX + 1]; // Entry name
-	uint32_t inode;              // Used in filesystem driver
+	char d_name[FILENAME_MAX + 1]; // Entry name
+	uint32_t d_ino;                // Used in filesystem driver
+	uint8_t d_type;                // Entry type
 } dirent;
 
 // Represents a directory stream
@@ -154,7 +159,8 @@ typedef struct mountpoint_t
 
 int initVFS();
 
-FILE* vfsOpen(const char *path, const char *mode);
+FILE *vfsOpen(const char *path, const char *mode);
+FILE *vfsOpenRelative(file_desc_t *dir, const char *path, const char *mode);
 void vfsClose(FILE *file);
 size_t vfsRead(FILE *file, void *buf, size_t size);
 size_t vfsWrite(FILE *file, const void *buf, size_t size);

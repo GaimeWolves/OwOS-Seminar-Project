@@ -29,6 +29,9 @@ typedef struct vfs_node_t
 {
 	struct file_desc_t *file_desc;
 
+	// Pointer to the directory this node lies in
+	struct vfs_node_t *parent;
+
 	// Pointer to first entry inside directory
 	// (applies if associated file is a directory or mountpoint)
 	struct vfs_node_t *child;
@@ -50,14 +53,15 @@ static vfs_node_t *root;
 //				Private function declarations
 //------------------------------------------------------------------------------------------
 
-static file_desc_t *findfile(vfs_node_t *node, char *path);
-static file_desc_t *createFile(vfs_node_t *node, char *path);
+static vfs_node_t *findfile(vfs_node_t *node, char *path);
+static vfs_node_t *createFile(vfs_node_t *node, char *path, uint32_t flags);
+static int removeNode(vfs_node_t *node);
 
 //------------------------------------------------------------------------------------------
 //				Private function implementations
 //------------------------------------------------------------------------------------------
 
-static file_desc_t *findfile(vfs_node_t *node, char *path)
+static vfs_node_t *findfile(vfs_node_t *node, char *path)
 {
 	// Does the node refer to another node? (eg. symlinks or mountpoints)
 	if (node->file_desc->flags & (FS_MOUNTPOINT | FS_SYMLINK))
@@ -65,7 +69,7 @@ static file_desc_t *findfile(vfs_node_t *node, char *path)
 	
 	// Correct node found
 	if (getPathLength(path) == 0)
-		return node->file_desc;
+		return node;
 
 	// Is the (new) node a directory?
 	if (!(node->file_desc->flags & FS_DIRECTORY))
@@ -98,6 +102,7 @@ static file_desc_t *findfile(vfs_node_t *node, char *path)
 	newNode->file_desc = newFile;
 
 	// Insert node
+	newNode->parent = node;
 	node->child->prev = newNode;
 	newNode->next = node->child;
 	node->child = newNode;
@@ -106,9 +111,61 @@ static file_desc_t *findfile(vfs_node_t *node, char *path)
 	return findfile(newNode, path);
 }
 
-static file_desc_t *createFile(vfs_node_t *node, char *path)
+static vfs_node_t *createFile(vfs_node_t *node, char *path, uint32_t flags)
 {
-	return NULL;
+	// File already exists
+	if (findfile(node, path))
+		return NULL;
+
+	char *dirPath = getPathDir(path);
+	char *filename = getPathFile(path);
+
+	if (!filename)
+	{
+		if (dirPath) kfree(dirPath);
+		return NULL;
+	}
+
+	vfs_node_t *parent = NULL;
+	if (!dirPath)
+		parent = node;
+	else
+		parent = findfile(node, dirPath);
+	
+	if (dirPath) kfree(dirPath);
+
+	if (!parent)
+	{
+		kfree(filename);
+		return NULL;
+	}
+
+	file_desc_t *file = kzalloc(sizeof(file_desc_t));
+	file->flags = flags;
+	file->mount = node->file_desc->mount;
+
+	strcpy(file->name, filename);
+
+	if (parent->file_desc->mkfile(file))
+	{
+		kfree(filename);
+		kfree(file);
+		return NULL;
+	}
+
+	vfs_node_t *newNode = kzalloc(sizeof(vfs_node_t));
+	newNode->file_desc = file;
+	newNode->parent = node;
+
+	if (parent->child)
+	{
+		parent->child->prev = newNode;
+		newNode->next = parent->child;
+	}
+
+	parent->child = newNode;
+
+	return newNode;
 }
 
 //------------------------------------------------------------------------------------------
@@ -196,27 +253,32 @@ FILE* vfsOpen(const char *path, const char *mode)
 	char *copy = kstrdup(path);
 	rmPathDirectory(copy);
 
-	file_desc_t *desc = findfile(root, copy);
-	
+	vfs_node_t *node = findfile(root, copy);
+
 	strcpy(copy, path);
 	rmPathDirectory(copy);
 
 	// Read mode requires an existing file
-	if (!desc && mode[0] == 'r')
+	if (!node && mode[0] == 'r')
+	{
+		kfree(copy);
 		return NULL;
-	else if (!desc)
-		desc = createFile(root, copy);
+	}
+	else if (!node)
+		node = createFile(root, copy, FS_FILE);
 
-	if (!desc)
+	kfree(copy);
+
+	if (node)
 		return NULL;
 
 	// Cannot open a file in write mode more than once
-	if (desc->openWriteDesc > 0 && (mode[0] == 'w' || mode[0] == 'a' || mode[1] == '+'))
+	if (node->file_desc->openWriteDesc > 0 && (mode[0] == 'w' || mode[0] == 'a' || mode[1] == '+'))
 		return NULL;
 
 	// Allocate file
 	FILE *file = kzalloc(sizeof(FILE));
-	file->file_desc = desc;
+	file->file_desc = node->file_desc;
 
 	// Parse mode
 	size_t len = strlen(mode);
@@ -249,13 +311,13 @@ FILE* vfsOpen(const char *path, const char *mode)
 	// Update read/write counts
 	if (file->flags & O_RDWR)
 	{
-		desc->openReadDesc++;
-		desc->openWriteDesc++;
+		node->file_desc->openReadDesc++;
+		node->file_desc->openWriteDesc++;
 	}
 	else if (file->flags & O_RDONLY)
-		desc->openReadDesc++;
+		node->file_desc->openReadDesc++;
 	else if (file->flags & O_WRONLY)
-		desc->openWriteDesc++;
+		node->file_desc->openWriteDesc++;
 
 	// Initialize buffers
 	char *ioBuf = kmalloc(BUFSIZ);
@@ -463,16 +525,120 @@ int vfsSetvbuf(FILE *file, char *buf, int mode, size_t size)
 
 int vfsRename(char *oldPath, char *newPath)
 {
-	return 0;
+	rmPathDirectory(oldPath);
+	rmPathDirectory(newPath);
+
+	// Find file at oldPath
+	vfs_node_t *node = findfile(root, oldPath);
+
+	if (!node)
+		return EOF;
+
+	// File at newPath already exists
+	if (findfile(root, newPath))
+		return EOF;
+
+	// Get directory of newPath
+	char *newDir = getPathDir(newPath);
+
+	if (!newDir)
+		return EOF;
+
+	vfs_node_t *newParent = findfile(root, newDir);
+
+	kfree(newDir);
+
+	// Parent directory not found
+	if (!newParent)
+	{
+		kfree(newDir);
+		return EOF;
+	}
+
+	// Parent file is not a directory
+	if (!(newParent->file_desc->flags & FS_DIRECTORY))
+	{
+		kfree(newDir);
+		return EOF;
+	}
+
+	// Change name of file at oldPath
+	char *oldName = getPathFile(oldPath);
+	char *newName = getPathFile(newPath);
+
+	strcpy(node->file_desc->name, newName);
+
+	// Create the file at newPath with the data at oldPath
+	if (newParent->file_desc->mkfile(node->file_desc))
+	{
+		// Revert changes
+		strcpy(node->file_desc->name, oldName);
+		kfree(oldName);
+		kfree(newName);
+		return EOF;
+	}
+	
+	// Delete the file at oldPath
+	if (node->parent->file_desc->rmfile(node->file_desc))
+	{
+		// Revert changes
+		newParent->file_desc->rmfile(node->file_desc);
+		strcpy(node->file_desc->name, oldName);
+		kfree(oldName);
+		kfree(newName);
+		return EOF;
+	}
+
+	kfree(oldName);
+	kfree(newName);
+
+	// Unlink file
+	if (node->parent->child == node)
+		node->parent->child = node->next;
+
+	if (node->next) node->next->prev = node->prev;
+	if (node->prev) node->prev->next = node->next;
+
+	// Link file at new node
+	node->parent = newParent;
+	newParent->child->prev = node;
+	node->next = newParent->child;
+	newParent->child = node;
+
+	return EOF;
 }
 
 int vfsRemove(char *path)
 {
+	rmPathDirectory(path);
+	vfs_node_t *file = findfile(root, path);
+
+	if (!file)
+		return EOF;
+
+	// Check if directory is empty
+	if (file->file_desc->flags & FS_DIRECTORY)
+	{
+		// Try to read a directory entry
+		DIR *dir = vfsOpendir(path);
+		if (vfsReaddir(dir))
+		{
+			vfsCloseDir(dir);
+			return EOF;
+		}
+	}
+
+	if(file->parent->file_desc->rmfile(file->file_desc))
+		return EOF;
+
 	return 0;
 }
 
 int vfsMkdir(char *path)
 {
+	if (!createFile(root, path, FS_DIRECTORY))
+		return EOF;
+
 	return 0;
 }
 
@@ -528,13 +694,15 @@ DIR *vfsOpendir(char *path)
 	rmPathDirectory(path);
 
 	DIR *dir = kzalloc(sizeof(DIR));
-	dir->dirfile = findfile(root, path);
+	vfs_node_t *node = findfile(root, path);
 
-	if (!dir->dirfile)
+	if (!node)
 	{
 		kfree(dir);
 		return NULL;
 	}
+	
+	dir->dirfile = node->file_desc;
 
 	if (!(dir->dirfile->flags & FS_DIRECTORY))
 	{

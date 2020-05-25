@@ -1354,8 +1354,13 @@ int readdirFAT32(DIR *dirstream)
 			ret = EOVERFLOW;
 		else
 		{
-			strcpy(dirstream->entry.name, current->fullname);
-			dirstream->entry.inode = cluster(&current->entry);
+			strcpy(dirstream->entry.d_name, current->fullname);
+			dirstream->entry.d_ino = cluster(&current->entry);
+
+			if (current->entry.attributes & DIRECTORY)
+				dirstream->entry.d_type = DT_DIR;
+			else
+				dirstream->entry.d_type = DT_REG;
 		}
 
 		ret = 0;
@@ -1381,16 +1386,34 @@ file_desc_t *findfileFAT32(file_desc_t *node, char *name)
 
 int mkfileFAT32(file_desc_t *file)
 {
-	cluster_chain_t *fileChain = createChain(file->mount, 1);
+	// File needs a cluster chain?
+	if (file->inode == 0)
+	{
+		cluster_chain_t *fileChain = createChain(file->mount, 1);
 
-	if (!fileChain)
-		return EOF;
+		if (!fileChain)
+			return EOF;
 
-	file->length = 0;
-	file->inode = fileChain->index;
+		file->length = 0;
+		file->inode = fileChain->index;
+	}
 
 	if(addDirectoryEntry(file->parent, file))
 		return EOF;
+
+	// Save callbacks
+	if (file->flags & FS_FILE)
+	{
+		file->read = (read_callback)readFAT32;
+		file->write = (write_callback)writeFAT32;
+	}
+	else
+	{
+		file->findfile = (findfile_callback)findfileFAT32;
+		file->mkfile = (mkfile_callback)mkfileFAT32;
+		file->readdir = (readdir_callback)readdirFAT32;
+		file->rmfile = (rmfile_callback)rmfileFAT32;
+	}
 
 	return 0;
 }
@@ -1450,7 +1473,6 @@ mountpoint_t *mountFAT32(partition_t *partition)
 	rootdir->inode = bpb->ebpb.rootcluster;
 	rootdir->findfile = (findfile_callback)findfileFAT32;
 	rootdir->readdir = (readdir_callback)readdirFAT32;
-	rootdir->mkdir = (mkdir_callback)mkdirFAT32;
 	rootdir->mkfile = (mkfile_callback)mkfileFAT32;
 
 	// Create the mountpoint

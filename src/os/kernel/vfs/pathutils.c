@@ -107,3 +107,18 @@ char *getPathFile(const char *path)
 {
 	return getPathSubstr(path, getPathLength(path) - 1);
 }
+
+char *getPathDir(const char *path)
+{
+	int len = strlen(path);
+	for (; len >= 0; len--)
+		if (path[len] == '/')
+			break;
+
+	if (len == 0)
+		return NULL;
+
+	char *dir = kstrndup(path, len);
+
+	return dir;
+}
