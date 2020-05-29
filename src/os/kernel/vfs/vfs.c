@@ -53,30 +53,92 @@ static vfs_node_t *root;
 //				Private function declarations
 //------------------------------------------------------------------------------------------
 
-static vfs_node_t *findfile(vfs_node_t *node, char *path);
-static vfs_node_t *createFile(vfs_node_t *node, char *path, uint32_t flags);
-static int removeNode(vfs_node_t *node);
+static vfs_node_t *findfile_helper(vfs_node_t *node, char *path);
+static vfs_node_t *findfile(vfs_node_t *node, const char *path);
+static vfs_node_t *createFile(vfs_node_t *node, const char *path, uint32_t flags);
+
+static int cleanupTreeHelper(vfs_node_t *node);
+static void cleanupTree();
 
 //------------------------------------------------------------------------------------------
 //				Private function implementations
 //------------------------------------------------------------------------------------------
 
-static vfs_node_t *findfile(vfs_node_t *node, char *path)
+// Helper function to recursively free unused nodes
+static int cleanupTreeHelper(vfs_node_t *node)
 {
-	// Does the node refer to another node? (eg. symlinks or mountpoints)
-	if (node->file_desc->flags & (FS_MOUNTPOINT | FS_SYMLINK))
-		node = node->child;
+	int ret = 0;
+
+	// Recursively try to free subdirectories
+	if (node->child)
+	{
+		for (vfs_node_t *child = node->child; child != NULL; child = child->next)
+			ret += cleanupTreeHelper(child);
+	}
+
+	// Check if the file is being written/read
+	if (node->file_desc->openReadStreams > 0 || node->file_desc->openWriteStreams > 0)
+		ret = 1;
+
+	// File is ready to be cleared (except root node)
+	if (!ret && node != root)
+	{
+		// Unlink file
+		if (node->parent)
+			node->parent->child = node->next;
+		
+		if (node->next)
+			node->next->prev = NULL;
 	
+		// Free used memory
+		kfree(node->file_desc);
+		kfree(node);
+	}
+
+	return ret;
+}
+
+// Recursively tries to free unused nodes inside the node tree
+static void cleanupTree()
+{
+	cleanupTreeHelper(root);
+}
+
+// Helper function to recursively find a file inside the node tree
+static vfs_node_t *findfile_helper(vfs_node_t *node, char *path)
+{
+	// Get file string
+	char *file = getPathSubstr(path, 0);
+	if (!node) // Path is supposed to start at root dir
+	{
+		if (!file || file[0] == '\0') // Path starts at root dir
+		{
+			rmPathDirectory(path);
+			kfree(file);
+			return findfile_helper(root, path);
+		}
+		else // Invalid path (vfs driver only accepts absolute paths)
+		{
+			kfree(file);
+			return NULL;
+		}
+	}
+
 	// Correct node found
 	if (getPathLength(path) == 0)
+	{
+		kfree(file);
 		return node;
+	}
 
 	// Is the (new) node a directory?
 	if (!(node->file_desc->flags & FS_DIRECTORY))
+	{
+		kfree(file);
 		return NULL;
+	}
 
-	// Get file string
-	char *file = getPathSubstr(path, 0);
+	// Go to next subdirectory
 	rmPathDirectory(path);
 
 	// Check if node is already in memory (recursively traverse node tree)
@@ -85,7 +147,7 @@ static vfs_node_t *findfile(vfs_node_t *node, char *path)
 		if (strcmp(child->file_desc->name, file) == 0)
 		{
 			kfree(file);
-			return findfile(child, path);
+			return findfile_helper(child, path);
 		}
 	}
 
@@ -107,12 +169,27 @@ static vfs_node_t *findfile(vfs_node_t *node, char *path)
 	newNode->next = node->child;
 	node->child = newNode;
 
+	// Recursively traverse the new node
 	kfree(file);
-	return findfile(newNode, path);
+	return findfile_helper(newNode, path);
 }
 
-static vfs_node_t *createFile(vfs_node_t *node, char *path, uint32_t flags)
+// Recursively finds a file inside the node tree specified by the path
+static vfs_node_t *findfile(vfs_node_t *node, const char *path)
 {
+	char *copy = kstrdup(path);
+	vfs_node_t *found = findfile_helper(node, copy);
+	kfree(copy);
+	return found;
+}
+
+// Creates a new file at the specified path relative to the node
+static vfs_node_t *createFile(vfs_node_t *node, const char *path, uint32_t flags)
+{
+	// Check if the origin node refers to a directory
+	if (node && !(node->file_desc->flags & FS_DIRECTORY))
+		return NULL;
+
 	// File already exists
 	if (findfile(node, path))
 		return NULL;
@@ -122,17 +199,20 @@ static vfs_node_t *createFile(vfs_node_t *node, char *path, uint32_t flags)
 
 	if (!filename)
 	{
-		if (dirPath) kfree(dirPath);
+		if (dirPath)
+			kfree(dirPath);
 		return NULL;
 	}
 
+	// Find the real parent directory of the new file
 	vfs_node_t *parent = NULL;
 	if (!dirPath)
 		parent = node;
 	else
 		parent = findfile(node, dirPath);
 	
-	if (dirPath) kfree(dirPath);
+	if (dirPath)
+		kfree(dirPath);
 
 	if (!parent)
 	{
@@ -140,12 +220,15 @@ static vfs_node_t *createFile(vfs_node_t *node, char *path, uint32_t flags)
 		return NULL;
 	}
 
+	// Create the file descriptor
 	file_desc_t *file = kzalloc(sizeof(file_desc_t));
 	file->flags = flags;
-	file->mount = node->file_desc->mount;
+	file->mount = parent->file_desc->mount;
+	file->parent = parent->file_desc;
 
 	strcpy(file->name, filename);
 
+	// Create the new file on its filesystem
 	if (parent->file_desc->mkfile(file))
 	{
 		kfree(filename);
@@ -153,9 +236,10 @@ static vfs_node_t *createFile(vfs_node_t *node, char *path, uint32_t flags)
 		return NULL;
 	}
 
+	// Create the vfs node and link it
 	vfs_node_t *newNode = kzalloc(sizeof(vfs_node_t));
 	newNode->file_desc = file;
-	newNode->parent = node;
+	newNode->parent = parent;
 
 	if (parent->child)
 	{
@@ -221,6 +305,7 @@ int initVFS()
 		return -1;
 	}
 
+	// Create mountpoint
 	mountpoint_t *mount = mountFAT32(bootpart);
 
 	if (!mount)
@@ -248,33 +333,24 @@ int initVFS()
 	return 0;
 }
 
+// Tries to open the file specified by the path
+// Tries to create the file if aplicable
 FILE* vfsOpen(const char *path, const char *mode)
 {
-	char *copy = kstrdup(path);
-	rmPathDirectory(copy);
+	// Check if it the file already exitst
+	vfs_node_t *node = findfile(NULL, path);
 
-	vfs_node_t *node = findfile(root, copy);
-
-	strcpy(copy, path);
-	rmPathDirectory(copy);
-
-	// Read mode requires an existing file
-	if (!node && mode[0] == 'r')
+	if (!node)
 	{
-		kfree(copy);
-		return NULL;
+		// Read mode requires an existing file
+		if (mode[0] == 'r')
+			return NULL;
+		else // Create the new file
+			node = createFile(NULL, path, FS_FILE);
+
+		if (!node) // The file couldn't be created
+			return NULL;
 	}
-	else if (!node)
-		node = createFile(root, copy, FS_FILE);
-
-	kfree(copy);
-
-	if (node)
-		return NULL;
-
-	// Cannot open a file in write mode more than once
-	if (node->file_desc->openWriteDesc > 0 && (mode[0] == 'w' || mode[0] == 'a' || mode[1] == '+'))
-		return NULL;
 
 	// Allocate file
 	FILE *file = kzalloc(sizeof(FILE));
@@ -307,17 +383,24 @@ FILE* vfsOpen(const char *path, const char *mode)
 		else
 			file->flags |= O_BIN;
 	}
+	
+	// Cannot open a file in write mode more than once
+	if (node->file_desc->openWriteStreams > 0 && (file->flags & (O_RDWR | O_WRONLY)))
+	{
+		kfree(file);
+		return NULL;
+	}
 
 	// Update read/write counts
 	if (file->flags & O_RDWR)
 	{
-		node->file_desc->openReadDesc++;
-		node->file_desc->openWriteDesc++;
+		node->file_desc->openReadStreams++;
+		node->file_desc->openWriteStreams++;
 	}
 	else if (file->flags & O_RDONLY)
-		node->file_desc->openReadDesc++;
+		node->file_desc->openReadStreams++;
 	else if (file->flags & O_WRONLY)
-		node->file_desc->openWriteDesc++;
+		node->file_desc->openWriteStreams++;
 
 	// Initialize buffers
 	char *ioBuf = kmalloc(BUFSIZ);
@@ -339,35 +422,41 @@ FILE* vfsOpen(const char *path, const char *mode)
 	return file;
 }
 
+// Closes the specified file stream
 void vfsClose(FILE *file)
 {
 	if (!file)
 		return;
 
+	// Flush unwritten data to drive
 	vfsFlush(file);
 
 	// Update read/write counts
 	if (file->flags & O_RDWR)
 	{
-		file->file_desc->openReadDesc--;
-		file->file_desc->openWriteDesc--;
+		file->file_desc->openReadStreams--;
+		file->file_desc->openWriteStreams--;
 	}
 	else if (file->flags & O_RDONLY)
-		file->file_desc->openReadDesc--;
+		file->file_desc->openReadStreams--;
 	else if (file->flags & O_WRONLY)
-		file->file_desc->openWriteDesc--;
+		file->file_desc->openWriteStreams--;
 
+	// Check if the buffer was allocated by this driver
+	// and free it
 	if (file->flags & ORIGBUF)
 		kfree(file->ioBuf);
 
-	// TODO: Cleanup node tree
-	
-	kfree(file);
+	cleanupTree(); // Cleanup node tree
+
+	kfree(file); // Free used memory
 	return;
 }
 
+// Read the specified amount of bytes into the buffer
 size_t vfsRead(FILE *file, void *buf, size_t size)
 {
+	// Was the file opened in read mode?
 	if (!(file->flags & O_RDONLY || file->flags & O_RDWR))
 		return 0;
 
@@ -379,9 +468,11 @@ size_t vfsRead(FILE *file, void *buf, size_t size)
 	// Read until EOF is reached or specified amount is read
 	while(!(file->flags & O_EOF && file->rdPtr == file->rdFil) && read < size)
 	{
+		// Empty the buffer
 		for (; file->rdPtr < file->rdFil && read < size; file->rdPtr++, read++)
 			buffer[read] = *file->rdPtr;
 
+		// Did we reach the EOF or did we read enough bytes?
 		if (file->flags & O_EOF || read >= size)
 			break;
 
@@ -398,11 +489,14 @@ size_t vfsRead(FILE *file, void *buf, size_t size)
 			file->flags |= O_EOF;
 	}
 
+	// Return the amount of bytes written
 	return read;
 }
 
+// Writes the specified amount of bytes to the file stream
 size_t vfsWrite(FILE *file, const void *buf, size_t size)
 {
+	// Was the file opened in write mode?
 	if (!(file->flags & O_WRONLY || file->flags & O_RDWR))
 		return 0;
 
@@ -411,29 +505,35 @@ size_t vfsWrite(FILE *file, const void *buf, size_t size)
 	size_t written = 0;
 	size_t wrSize = (size_t)(file->wrEnd - file->wrBuf);
 
-	// Write until buffer is empty
+	// Write until user-buffer is empty
 	while(written < size)
 	{
+		// Fill the stream-buffer
 		for (; file->wrPtr < file->wrEnd && written < size; file->wrPtr++, written++)
 			*file->wrPtr = buffer[written];
 
+		// Is the user-buffer empty?
 		if (written >= size)
 			break;
 
+		// Write the full buffer to the file
 		size_t amount = file->file_desc->write(file->file_desc, file->pos, wrSize, file->wrBuf);
 		file->pos += amount;
 		file->wrPtr = file->wrBuf + (wrSize - amount);
 
-		// Move unwritten contents to beginning
+		// Move unwritten contents to beginning of stream-buffer
 		memcpy(file->wrBuf, file->wrBuf + amount, wrSize - amount);
 
+		// Break if the filesystem couldn't write all data
 		if (amount < wrSize)
 			break;
 	}
 
+	// Return the number of bytes written
 	return written;
 }
 
+// Sets the file stream position to an offset from the specified origin
 int vfsSeek(FILE *file, long offset, int origin)
 {
 	size_t pos = 0;
@@ -443,13 +543,13 @@ int vfsSeek(FILE *file, long offset, int origin)
 	
 	switch(origin)
 	{
-		case SEEK_CUR:
+		case SEEK_CUR: // Origin = current position
 			pos = file->pos;
 			break;
-		case SEEK_END:
+		case SEEK_END: // Origin = EOF
 			pos = file->file_desc->length;
 			break;
-		default:
+		default:       // Origin = start of file
 			break;
 	}
 
@@ -464,13 +564,17 @@ int vfsSeek(FILE *file, long offset, int origin)
 	return 0;
 }
 
+// Flush the buffer contents to the drive
 int vfsFlush(FILE *file)
 {
+	// Was the file opened in write mode?
 	if (!(file->flags & O_WRONLY || file->flags & O_RDWR))
 		return EOF;
 
+	// Determine amount to be written
 	size_t wrSize = (size_t)(file->wrPtr - file->wrBuf);
 
+	// Write to the drive
 	size_t amount = file->file_desc->write(file->file_desc, file->pos, wrSize, file->wrBuf);
 	file->pos += amount;
 	file->wrPtr = file->wrBuf + (wrSize - amount);
@@ -478,18 +582,22 @@ int vfsFlush(FILE *file)
 	// Move unwritten contents to beginning
 	memcpy(file->wrBuf, file->wrBuf + amount, wrSize - amount);
 
+	// Clear EOF if something was written
 	if (amount > 0)
 		file->flags &= ~O_EOF;
 
+	// Check if write error occured
 	if (amount < wrSize)
 		return EOF;
 
+	// Reset read buffer
 	file->rdPtr = file->rdBuf;
 	file->rdFil = file->rdBuf;
 
 	return 0;
 }
 
+// Sets the internal buffer to the specified parameters
 int vfsSetvbuf(FILE *file, char *buf, int mode, size_t size)
 {
 	if (size < 2 || mode > 2)
@@ -497,14 +605,16 @@ int vfsSetvbuf(FILE *file, char *buf, int mode, size_t size)
 
 	char *ioBuf = NULL;
 
-	if (!buf)
+	if (!buf) // Use driver-managed buffer
 		ioBuf = kmalloc(size);
-	else
+	else      // Use user-buffer
 		ioBuf = buf;
 
+	// Free old buffer if driver-managed
 	if (file->flags & ORIGBUF)
 		kfree(file->ioBuf);
 
+	// Set stream buffer properties
 	file->ioBuf = ioBuf;
 	file->ioEnd = file->ioBuf + size;
 	file->rdBuf = file->ioBuf;
@@ -515,6 +625,7 @@ int vfsSetvbuf(FILE *file, char *buf, int mode, size_t size)
 	file->wrPtr = file->wrBuf;
 	file->wrEnd = file->ioEnd;
 
+	// Clear ORIGBUF if the buffer is user-allocated
 	if (buf)
 		file->flags &= ~ORIGBUF;
 
@@ -523,19 +634,17 @@ int vfsSetvbuf(FILE *file, char *buf, int mode, size_t size)
 	return 0;
 }
 
-int vfsRename(char *oldPath, char *newPath)
+// Moves a file from the old path to the new path
+int vfsRename(const char *oldPath, const char *newPath)
 {
-	rmPathDirectory(oldPath);
-	rmPathDirectory(newPath);
-
 	// Find file at oldPath
-	vfs_node_t *node = findfile(root, oldPath);
+	vfs_node_t *node = findfile(NULL, oldPath);
 
 	if (!node)
 		return EOF;
 
 	// File at newPath already exists
-	if (findfile(root, newPath))
+	if (findfile(NULL, newPath))
 		return EOF;
 
 	// Get directory of newPath
@@ -544,7 +653,8 @@ int vfsRename(char *oldPath, char *newPath)
 	if (!newDir)
 		return EOF;
 
-	vfs_node_t *newParent = findfile(root, newDir);
+	// Find parent directory
+	vfs_node_t *newParent = findfile(NULL, newDir);
 
 	kfree(newDir);
 
@@ -568,52 +678,48 @@ int vfsRename(char *oldPath, char *newPath)
 
 	strcpy(node->file_desc->name, newName);
 
-	// Create the file at newPath with the data at oldPath
-	if (newParent->file_desc->mkfile(node->file_desc))
+	// Rename file in the filesystem
+	if (node->file_desc->rename(node->file_desc, newParent->file_desc, oldName))
 	{
-		// Revert changes
 		strcpy(node->file_desc->name, oldName);
 		kfree(oldName);
 		kfree(newName);
 		return EOF;
 	}
 	
-	// Delete the file at oldPath
-	if (node->parent->file_desc->rmfile(node->file_desc))
-	{
-		// Revert changes
-		newParent->file_desc->rmfile(node->file_desc);
-		strcpy(node->file_desc->name, oldName);
-		kfree(oldName);
-		kfree(newName);
-		return EOF;
-	}
-
 	kfree(oldName);
 	kfree(newName);
 
-	// Unlink file
+	// Unlink file at previous node
 	if (node->parent->child == node)
 		node->parent->child = node->next;
 
-	if (node->next) node->next->prev = node->prev;
-	if (node->prev) node->prev->next = node->next;
+	if (node->next)
+		node->next->prev = node->prev;
+
+	if (node->prev)
+		node->prev->next = node->next;
 
 	// Link file at new node
 	node->parent = newParent;
 	newParent->child->prev = node;
 	node->next = newParent->child;
 	newParent->child = node;
+	node->file_desc->parent = newParent->file_desc;
 
-	return EOF;
+	return 0;
 }
 
-int vfsRemove(char *path)
+// Deletes the specified file
+int vfsRemove(const char *path)
 {
-	rmPathDirectory(path);
-	vfs_node_t *file = findfile(root, path);
+	// Find the file
+	vfs_node_t *file = findfile(NULL, path);
 
 	if (!file)
+		return EOF;
+
+	if (file->file_desc->openReadStreams > 0 || file->file_desc->openWriteStreams > 0)
 		return EOF;
 
 	// Check if directory is empty
@@ -621,25 +727,62 @@ int vfsRemove(char *path)
 	{
 		// Try to read a directory entry
 		DIR *dir = vfsOpendir(path);
-		if (vfsReaddir(dir))
+		if (vfsReaddir(dir)) // Returns dirent on success
 		{
-			vfsCloseDir(dir);
+			vfsClosedir(dir);
 			return EOF;
 		}
 	}
 
+	// Remove the file from the filesystem
 	if(file->parent->file_desc->rmfile(file->file_desc))
+		return EOF;
+
+	// Unlink file
+	if (file->parent->child == file)
+		file->parent->child = file->next;
+
+	if (file->next)
+		file->next->prev = file->prev;
+
+	if (file->prev)
+		file->prev->next = file->next;
+
+	kfree(file->file_desc);
+	kfree(file);
+
+	cleanupTree();
+
+	return 0;
+}
+
+// Creates a directory at the specifed path
+int vfsMkdir(const char *path)
+{
+	if (!createFile(NULL, path, FS_DIRECTORY))
 		return EOF;
 
 	return 0;
 }
 
-int vfsMkdir(char *path)
+// Reads one character from the stream and returns it.
+int vfsGetc(FILE *stream)
 {
-	if (!createFile(root, path, FS_DIRECTORY))
+	if (!stream)
 		return EOF;
 
-	return 0;
+	char buf;
+	if (vfsRead(stream, &buf, 1) != 1)
+		return EOF;
+
+	return (int)buf;
+}
+
+// Writes a single character to the stream
+int vfsPutc(int ch, FILE *stream)
+{
+	char chr = (char)ch;
+	return vfsWrite(stream, &chr, 1) == 1 ? 0 : EOF;
 }
 
 // Read single chars from the stream until EOF or newline
@@ -655,16 +798,19 @@ char *vfsGets(char *str, int count, FILE *stream)
 	}
 
 	int index = 0;
-	char buf;
+	int chr = 0;
 
-	while(vfsRead(stream, &buf, 1) && index < count - 1)
+	// Read every char until newline or count - 1 chars
+	while(index < count - 1 && chr != '\n')
 	{
-		str[index++] = buf;
-		if (buf == '\n')
-			break;
+		chr = vfsGetc(stream);
+		if (chr == EOF)
+			return NULL;
+
+		str[index++] = (char)chr;
 	}
 
-	if (index == 0)
+	if (index == 0) // Return failure if nothing is written
 		return NULL;
 
 	str[index] = '\0';
@@ -672,6 +818,7 @@ char *vfsGets(char *str, int count, FILE *stream)
 	return str;
 }
 
+// Writes a null terminated string to the file and one additional newline
 int vfsPuts(const char *str, FILE *stream)
 {
 	if (!str)
@@ -682,19 +829,19 @@ int vfsPuts(const char *str, FILE *stream)
 	// Write every char
 	while(str[index] != '\0')
 	{
-		if (!vfsWrite(stream, str + index++, 1))
+		if (vfsPutc(str[index++], stream))
 			return EOF;
 	}
 
 	return 0;
 }
 
-DIR *vfsOpendir(char *path)
+// Opens the directory associated with the path as a directory stream
+DIR *vfsOpendir(const char *path)
 {
-	rmPathDirectory(path);
-
+	// Find the directory inside the node tree
 	DIR *dir = kzalloc(sizeof(DIR));
-	vfs_node_t *node = findfile(root, path);
+	vfs_node_t *node = findfile(NULL, path);
 
 	if (!node)
 	{
@@ -704,34 +851,45 @@ DIR *vfsOpendir(char *path)
 	
 	dir->dirfile = node->file_desc;
 
+	// Check if the file pointed to by the path is a directory
 	if (!(dir->dirfile->flags & FS_DIRECTORY))
 	{
 		kfree(dir);
 		return NULL;
 	}
 
-	dir->dirfile->openReadDesc++;
+	// Increase the number of open read streams
+	dir->dirfile->openReadStreams++;
 
 	return dir;
 }
 
-int vfsCloseDir(DIR *dir)
+// Closes a directory stream
+int vfsClosedir(DIR *dir)
 {
-	dir->dirfile->openReadDesc--;
+	// Decrease the number of open read streams and free the used memory
+	dir->dirfile->openReadStreams--;
 	kfree(dir);
+
+	cleanupTree();
 
 	return 0;
 }
 
+// Read one directory entry from the directory pointed to by the dir stream
 dirent *vfsReaddir(DIR *dir)
 {
+	// Read a directory entry
 	int ret = dir->dirfile->readdir(dir);
 
+	// Check if the error is not EOF
 	if (ret != EOF)
 		dir->index++;
 
+	// Other errors mean a specific entry couldn't be read but following calls may succeed
 	if (ret)
 		return NULL;
 
+	// Return the dir entry
 	return &dir->entry;
 }

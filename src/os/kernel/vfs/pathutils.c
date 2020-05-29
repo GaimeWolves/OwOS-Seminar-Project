@@ -115,7 +115,7 @@ char *getPathDir(const char *path)
 		if (path[len] == '/')
 			break;
 
-	if (len == 0)
+	if (len < 0)
 		return NULL;
 
 	char *dir = kstrndup(path, len);
