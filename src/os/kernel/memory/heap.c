@@ -338,11 +338,11 @@ static void optimizeChunk(chunk_t *chunk)
 			if (blockDifference > 1)
 			{
 				// Space for a new chunk header
-				if ((uintptr_t)next - nextBlock >= sizeof(chunk_t))
+				if ((uintptr_t)next - (nextBlock * PMM_BLOCK_SIZE) >= sizeof(chunk_t))
 				{
 					// Free unnecessary blocks
-					pmmFreeContinuous((void*)currentPtr, (blockDifference - 1) * PMM_BLOCK_SIZE);
-				
+					pmmFreeContinuous((void*)((currentBlock + 1) * PMM_BLOCK_SIZE), blockDifference - 1);
+
 					// Find out number of remaining blocks
 					allocation_t *end = next;
 					while(end->next)

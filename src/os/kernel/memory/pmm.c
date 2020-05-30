@@ -232,7 +232,7 @@ int initPMM(multiboot_info_t *header)
 int pmmAllocRegion(uintptr_t base, size_t size)
 {
 	int block = base / PMM_BLOCK_SIZE;
-	int count = size / PMM_BLOCK_SIZE;
+	int count = (size + PMM_BLOCK_SIZE - 1) / PMM_BLOCK_SIZE;
 
 	// Check neccesary bits
 	bool free = true;
@@ -264,7 +264,7 @@ int pmmAllocRegion(uintptr_t base, size_t size)
 int pmmFreeRegion(uintptr_t base, size_t size)
 {
 	int block = base / PMM_BLOCK_SIZE;
-	int count = size / PMM_BLOCK_SIZE;
+	int count = (size + PMM_BLOCK_SIZE - 1) / PMM_BLOCK_SIZE;
 	int originalCount = count;
 
 	// Clear neccesary bits
