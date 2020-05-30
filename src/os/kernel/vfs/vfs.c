@@ -567,6 +567,10 @@ int vfsSeek(FILE *file, long offset, int origin)
 // Flush the buffer contents to the drive
 int vfsFlush(FILE *file)
 {
+	// Reset read buffer
+	file->rdPtr = file->rdBuf;
+	file->rdFil = file->rdBuf;
+
 	// Was the file opened in write mode?
 	if (!(file->flags & O_WRONLY || file->flags & O_RDWR))
 		return EOF;
@@ -589,10 +593,6 @@ int vfsFlush(FILE *file)
 	// Check if write error occured
 	if (amount < wrSize)
 		return EOF;
-
-	// Reset read buffer
-	file->rdPtr = file->rdBuf;
-	file->rdFil = file->rdBuf;
 
 	return 0;
 }
