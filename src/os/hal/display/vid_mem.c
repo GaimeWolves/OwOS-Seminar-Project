@@ -101,9 +101,13 @@ int setMemoryPixel(uint8_t column, uint8_t row, pixel_t pixelAttributes)
 int scrollBuffer(uint8_t count)
 {
 	internScroll(count, buffer);
+
+	return 0;
 }
 
 int scrollMemory(uint8_t count)
 {
 	internScroll(count, memory);
+
+	return 0;
 }

@@ -19,7 +19,7 @@ static inline void setGDTR(void)
 	gdtr.limit = sizeof(gdtDescriptor_t) * GDT_MAX_COUNT - 1;
 
 	//Load reference to gdtr struct to the register
-	asm volatile ("lgdt [%0]":: "r" (&gdtr));
+	asm volatile ("lgdt (%0)":: "r" (&gdtr));
 }
 
 static int setGDTDescriptor(int32_t base, int32_t limit, int8_t access, int8_t flags, size_t index)

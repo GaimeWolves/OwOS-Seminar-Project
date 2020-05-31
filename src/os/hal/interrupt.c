@@ -110,7 +110,7 @@ static void setIDTR(void){
 	idtr.limit = sizeof(IDTDescriptor_t) * I86_MAX_INTERRUPTS - 1;
 
 	//Load reference to idtr struct to the register
-	__asm__("lidt [edx]"::"d"(&idtr));
+	asm volatile ("lidt (%0)"::"r"(&idtr));
 }
 
 IDTDescriptor_t* setInterruptDescriptor(interruptHandler_t handler, int16_t selector, int8_t createFlags, int index)
@@ -214,7 +214,7 @@ interruptHandler_t getVect(uint8_t index)
 int setInterruptFlag(void)
 {
 	//Set interrupt flag instruction
-	__asm__("sti"::);
+	asm volatile ("sti"::);
 
 	//Report success
 	return 0;
@@ -223,7 +223,7 @@ int setInterruptFlag(void)
 int clearInterruptFlag(void)
 {
 	//clear interrupt flag instruction
-	__asm__("cli"::);
+	asm volatile ("cli"::);
 
 	//Report success
 	return 0;
@@ -231,9 +231,9 @@ int clearInterruptFlag(void)
 
 void genInt(uint8_t id)
 {
-	__asm__ (
-		"mov byte ptr [genint+1], al;"
+	asm volatile (
+		"movb (genint+1), %0;"
 		"genint:;"
-		"int 0;"						// above code modifies the 0 to int number to be generated
-		::"a"(id));
+		"int $0;"						// above code modifies the 0 to int number to be generated
+		::"r"(id));
 }

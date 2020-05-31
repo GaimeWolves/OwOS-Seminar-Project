@@ -14,7 +14,7 @@
 //------------------------------------------------------------------------------------------
 void halt(void)
 {
-	asm volatile ("hlt"::);
+	asm volatile("hlt"::);
 }
 
 char* vendorName(void)
@@ -24,33 +24,33 @@ char* vendorName(void)
 
 void outb(uint16_t port, uint8_t data)
 {
-	__asm__("out dx, al"::"a"(data),"d"(port));
+	asm volatile("outb %0, %1"::"a"(data),"dN"(port));
 }
 void outw(uint16_t port, uint16_t data)
 {
-	__asm__("out dx, ax"::"a"(data),"d"(port));
+	asm volatile("outw %0, %1"::"a"(data),"dN"(port));
 }
 void outd(uint16_t port, uint32_t data)
 {
-	__asm__("out dx, eax"::"a"(data),"d"(port));
+	asm volatile("outl %0, %1"::"a"(data),"dN"(port));
 }
 
 uint8_t inb(uint16_t port)
 {
 	uint8_t data = 0;
-	__asm__("in al, dx":"=a"(data):"d"(port));
+	asm volatile("inb %1, %0":"=a"(data):"dN"(port));
 	return data;
 }
 uint16_t inw(uint16_t port)
 {
 	uint16_t data = 0;
-	__asm__("in ax, dx":"=a"(data):"d"(port));
+	__asm__("inw %1, %0":"=a"(data):"dN"(port));
 	return data;
 }
 
 uint32_t ind(uint16_t port)
 {
 	uint32_t data = 0;
-	__asm__("in eax, dx":"=a"(data):"d"(port));
+	__asm__("inl %1, %0":"=a"(data):"dN"(port));
 	return data;
 }

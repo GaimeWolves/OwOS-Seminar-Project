@@ -59,6 +59,8 @@ int move(int x, int y)
 		return -3;
 
 	setCursor((uint8_t)x, (uint8_t)y);
+
+	return 0;
 }
 
 int mvaddchr(int x, int y, char character)
@@ -66,6 +68,8 @@ int mvaddchr(int x, int y, char character)
 	addchr(x, y, character);
 
 	setCursorNext(x, y);
+
+	return 0;
 }
 int mvaddstr(int x, int y, char* str)
 {
@@ -75,6 +79,8 @@ int mvaddstr(int x, int y, char* str)
 	int cursorX = (x + len) % MAX_COLS;
 	int cursorY = y + (x + len) / MAX_COLS; 
 	move(cursorX, cursorY);
+
+	return 0;
 }
 int mvprintw(int x, int y, char* fmt, ...)
 {
@@ -105,6 +111,8 @@ int addchr(int x, int y, char character)
 	pixelAttribute.character = character;
 	pixelAttribute.color = internColor;
 	setBufferPixel((uint8_t)x, (uint8_t)y, pixelAttribute);
+
+	return 0;
 }
 int addstr(int x, int y, char* str)
 {
@@ -128,6 +136,8 @@ int addstr(int x, int y, char* str)
 			y++;
 		}
 	}
+
+	return 0;
 }
 int printw(int x, int y, char* fmt, ...)
 {
