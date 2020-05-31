@@ -561,6 +561,10 @@ int vfsSeek(FILE *file, long offset, int origin)
 
 	file->pos = pos;
 
+	// Reset EOF if we don't exceed the filesize
+	if(pos < file->file_desc->length)
+		file->flags &= ~O_EOF;
+
 	return 0;
 }
 
