@@ -25,9 +25,9 @@
 //				Variables
 //------------------------------------------------------------------------------------------
 
-extern characterStream_t stdin;
-extern characterStream_t stdout;
-extern characterStream_t stderr;
+extern characterStream_t *stdin;
+extern characterStream_t *stdout;
+extern characterStream_t *stderr;
 
 //------------------------------------------------------------------------------------------
 //				Public Function
