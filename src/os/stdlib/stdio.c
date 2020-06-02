@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include "include/stdio.h"
 
 //------------------------------------------------------------------------------------------
 //				Includes
@@ -6,9 +6,13 @@
 
 #include <stdint.h>
 #include <limits.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <string.h>
+
+#include "include/ctype.h"
+#include "include/stdlib.h"
+#include "include/string.h"
+
+#include <vfs/vfs.h>
+#include <memory/heap.h>
 
 //------------------------------------------------------------------------------------------
 //				Streams
@@ -377,6 +381,156 @@ static void parse_length(conversion_t *conversion)
 //				Public function implementations
 //------------------------------------------------------------------------------------------
 
+FILE *fopen(const char *filename, const char *mode)
+{
+	return vfsOpen(filename, mode);
+}
+
+FILE *freopen(const char *filename, const char *mode)
+{
+	//TODO: Implement reopen in vfs
+	return NULL;
+}
+
+int fclose(FILE *stream)
+{
+	if (!stream)
+		return EOF;
+
+	vfsClose(stream);
+	return 0;
+}
+
+int fflush(FILE *stream)
+{
+	return vfsFlush(stream);
+}
+
+void setbuf(FILE *stream, char *buffer)
+{
+	if (buffer)
+		vfsSetvbuf(stream, buffer, _IOFBF, BUFSIZ);
+	else
+		vfsSetvbuf(stream, NULL, _IONBF, 0); // Turn off buffering
+}
+
+int setvbuf(FILE *stream, char *buffer, int mode, size_t size)
+{
+	return vfsSetvbuf(stream, buffer, mode, size);
+}
+
+size_t fread(void *buffer, size_t size, size_t count, FILE *stream)
+{
+	size_t read = vfsRead(stream, buffer, size * count);
+	return read / size;
+}
+
+size_t fwrite(const void *buffer, size_t size, size_t count, FILE *stream)
+{
+	size_t written = vfsWrite(stream, buffer, size * count);
+	return written / size;
+}
+
+int fgetc(FILE *stream)
+{
+	return vfsGetc(stream);
+}
+
+#define getc(stream) fgetc(stream)               // May be defined as a macro as it does the same as fgetc
+
+char *fgets(char *str, int count, FILE *stream)
+{
+	return vfsGets(str, count, stream);
+}
+
+int fputc(int ch, FILE *stream)
+{
+	return vfsPutc(ch, stream);
+}
+
+#define putc(ch, stream) fputc(ch, stream)
+
+int fputs(const char *str, FILE *stream)
+{
+	return vfsPuts(str, stream);
+}
+
+int getchar()
+{
+	return stdin->read(stdin);
+}
+
+char *gets(char *str)
+{
+	if (!str)
+		return NULL;
+
+	char chr = stdin->read(stdin);
+
+	while (chr != '\n')
+	{
+		*str++ = chr;
+		chr = stdin->read(stdin);
+	}
+
+	*str = '\0';
+
+	return str;
+}
+
+char *gets_s(char *str, size_t n)
+{
+	if (!str || n == 0)
+		return NULL;
+
+	while(n-- > 1)
+	{
+		char chr = stdin->read(stdin);
+
+		if (chr == '\n')
+			break;
+
+		*str++ = chr;
+	}
+
+	*str = '\0';
+
+	return str;
+}
+
+int putchar(int ch)
+{
+	stdout->write(stdout, (char)ch);
+	return 0;
+}
+
+int puts(const char *str)
+{
+	while(*str != '\0')
+		stdout->write(stdout, *str++);
+
+	stdout->write(stdout, '\n');
+
+	return 0;
+}
+
+int ungetc(int ch, FILE *stream)
+{
+	// TODO: Implement ungetc in vfs
+	return 0;
+}
+
+int scanf(const char *format, ...);
+int fscanf(FILE *stream, const char *format, ...);
+int sscanf(const char *buffer, const char *format, ...);
+
+int vscanf(const char *format, va_list ap);
+int vfscanf(FILE *stream, const char *format, va_list ap);
+int vsscanf(const char *buffer, const char *format, va_list ap);
+
+int printf(const char *format, ...);
+int fprintf(FILE *stream, const char *format, ...);
+
 int sprintf(char *buffer, const char *format, ...)
 {
 	va_list ap;
@@ -401,6 +555,9 @@ int snprintf(char *buffer, size_t bufsz, const char *format, ...)
 	va_end(ap);
 	return written;
 }
+
+int vprintf(const char *format, va_list ap);
+int vfprintf(FILE *stream, const char *format, va_list ap);
 
 int vsprintf(char *buffer, const char *format, va_list ap)
 {
@@ -715,4 +872,125 @@ int vsnprintf(char *buffer, size_t bufsz, const char *format, va_list ap)
 
 	// Return number of characters that would've been written without bufsz limit
 	return written;
+}
+
+long ftell(FILE *stream)
+{
+	if (!stream)
+		return EOF;
+
+	return stream->pos;
+}
+
+int fgetpos(FILE *stream, fpos_t *pos)
+{
+	if (!stream || !pos)
+		return EOF;
+
+	*pos = stream->pos;
+
+	return 0;
+}
+
+int fseek(FILE *stream, long offset, int origin)
+{
+	return vfsSeek(stream, offset, origin);
+}
+
+int fsetpos(FILE *stream, const fpos_t *pos)
+{
+	if (!stream || !pos)
+		return EOF;
+
+	vfsSeek(stream, *pos, SEEK_SET);
+
+	return 0;
+}
+
+void rewind(FILE *stream)
+{
+	vfsSeek(stream, 0, SEEK_SET);
+}
+
+void clearerr(FILE *stream)
+{
+	//TODO: Implement error flags in vfs to clear here
+}
+
+int feof(FILE *stream)
+{
+	return stream->flags & O_EOF;
+}
+
+int ferror(FILE *stream)
+{
+	//TODO: See clearerr
+	return 0;
+}
+
+void perror(const char *s)
+{
+	//TODO: Implement errno.h
+}
+
+int remove(const char *fname)
+{
+	return vfsRemove(fname);
+}
+
+int rename(const char *old_filename, const char *new_filename)
+{
+	return vfsRename(old_filename, new_filename);
+}
+
+FILE *tmpfile()
+{
+	static const char *tmpdir = "/tmp/";
+
+	// Find filename
+	char *fname = kmalloc(FILENAME_MAX + 5);
+	if (!tmpnam(fname + 5))
+	{
+		kfree(fname);
+		return NULL;
+	}
+
+	// Prepend directory
+	for (int i = 0; i < 5; i++)
+		fname[i] = tmpdir[i];
+
+	FILE *file = vfsOpen(fname, "wb+");
+
+	kfree(fname);
+
+	return file;
+}
+
+char *tmpnam(char *filename)
+{
+	DIR *tmpdir = vfsOpendir("/tmp");
+	dirent *entry;
+
+	// Check all available tmp filenames
+	for (size_t i = 0; i < SIZE_MAX; ++i)
+	{
+		// Construct filename (eg. tmp_000014AF)
+		snprintf(filename, FILENAME_MAX, "tmp_%.8zX", i);
+		bool found = false;
+
+		// Check if already existent
+		while((entry = vfsReaddir(tmpdir)))
+		{
+			if (strcmp(entry->d_name, filename) == 0)
+			{
+				found = true;
+				break;
+			}
+		}
+
+		if (!found)
+			return filename;
+	}
+
+	return NULL;
 }
