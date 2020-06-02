@@ -247,6 +247,12 @@ static chunk_t* createNewChunk(size_t size)
 
 			current->prev = newChunk;
 		}
+		else if (current->next == NULL)
+		{
+			current->next = newChunk;
+			newChunk->prev = current;
+			break;
+		}
 	}
 
 	debug_printf("[HEAP] Created new chunk with %u blocks @ %p", newChunk->blocks, (void*)newChunk);
