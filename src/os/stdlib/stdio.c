@@ -27,15 +27,18 @@ extern characterStream_t* err_stream_var;
 //				Constants
 //------------------------------------------------------------------------------------------
 
-#define CONVERSION_FLAG_LADJUST   0x01  // Left adjust
-#define CONVERSION_FLAG_SIGN      0x02  // Always print sign
-#define CONVERSION_FLAG_SPACE     0x04  // Print space on positive value
-#define CONVERSION_FLAG_ALT       0x08  // Alternative representation
-#define CONVERSION_FLAG_ZERO      0x10  // Adjust with zeroes
-#define CONVERSION_FLAG_PRECISION 0x40  // Precision explicitly specified
-#define CONVERSION_FLAG_PARSING   0x80  // Used in conversion
+#define SCANF_MAX_DIGITS 24 // Octal takes up at most 22 characters (plus prepended zero and null terminator)
 
-// Default conversion length: int
+// Flags used in printf
+#define PRINTF_FLAG_LADJUST   0x01  // Left adjust
+#define PRINTF_FLAG_SIGN      0x02  // Always print sign
+#define PRINTF_FLAG_SPACE     0x04  // Print space on positive value
+#define PRINTF_FLAG_ALT       0x08  // Alternative representation
+#define PRINTF_FLAG_ZERO      0x10  // Adjust with zeroes
+#define PRINTF_FLAG_PRECISION 0x40  // Precision explicitly specified
+#define PRINTF_FLAG_PARSING   0x80  // Used in conversion
+
+// Default conversion->length: int
 #define CONVERSION_LENGTH_NONE 0x00  // int
 #define CONVERSION_LENGTH_HH   0x01  // char
 #define CONVERSION_LENGTH_H    0x02  // short
@@ -49,8 +52,17 @@ extern characterStream_t* err_stream_var;
 //				Types
 //------------------------------------------------------------------------------------------
 
-// Holds the state of the conversion for use in helper functions
-typedef struct
+struct printf_conv_t;
+struct scanf_conv_t;
+
+typedef void (*printf_putc_callback)(const char ch, struct printf_conv_t *conv);
+typedef void (*printf_puts_callback)(const char *str, size_t size, struct printf_conv_t *conv);
+
+typedef int (*scanf_getc_callback)(struct scanf_conv_t *conv);
+typedef void (*scanf_ungetc_callback)(struct scanf_conv_t *conv, const char ch);
+
+// Holds the state of the current printf-conversion->for use in helper functions
+typedef struct printf_conv_t
 {
 	// State of current conversion
 	uint8_t flags;
@@ -60,40 +72,167 @@ typedef struct
 	char specifier;
 
 	// State of current printf call
-	const char **format;
-	char **buffer;
-	size_t *bufsz;
-	int *written;
-	va_list *ap;
-} conversion_t;
+	const char *format;
+	uintptr_t buffer; // May be char*, stdin*/stdout* or FILE*
+	size_t bufsz;
+	int written;
+	va_list ap;
+
+	// Callbacks because writing to char*, characterStream* and FILE* is different
+	printf_putc_callback putc;
+	printf_puts_callback puts;
+} printf_conv_t;
+
+// Holds the state of teh current scanf-conversion
+typedef struct scanf_conv_t
+{
+	bool suppress;     // Suppress assignment into variable
+	int maximum_width;
+	uint8_t length;
+	char specifier;
+
+	const char *format;
+	uintptr_t buffer; // May be char*, stdin*/stdout* or FILE*
+	size_t bufsz;
+	int assigned;
+	va_list ap;
+
+	scanf_getc_callback getc;
+	scanf_ungetc_callback ungetc;
+} scanf_conv_t;
 
 //------------------------------------------------------------------------------------------
 //				Private function declarations
 //------------------------------------------------------------------------------------------
 
-static void write_padding(conversion_t *conversion, bool ladjust, char fill);
-static void write_string(conversion_t *conversion, const char *s, size_t size);
-static void write_char(conversion_t *conversion, const char c);
-static void write_char_seq(conversion_t *conversion, const char c, size_t count);
+// Three versions of every callback for char**, characterStream* and FILE*
+static void str_putc(const char ch, printf_conv_t *conv);
+static void stdio_putc(const char ch, printf_conv_t *conv);
+static void file_putc(const char ch, printf_conv_t *conv);
 
-static void parse_number(conversion_t *conversion, char *buffer, void* var);
-static void parse_varg(conversion_t *conversion, char *buffer);
-static void parse_flags(conversion_t *conversion);
-static void parse_width(conversion_t *conversion);
-static char parse_precision(conversion_t *conversion);
-static void parse_length(conversion_t *conversion);
+static void str_puts(const char *str, size_t size, printf_conv_t *conv);
+static void stdio_puts(const char *str, size_t size, printf_conv_t *conv);
+static void file_puts(const char *str, size_t size, printf_conv_t *conv);
+
+static int str_getc(scanf_conv_t *conv);
+static int stdio_getc(scanf_conv_t *conv);
+static int file_getc(scanf_conv_t *conv);
+
+static void str_ungetc(scanf_conv_t *conv, const char ch);
+static void stdio_ungetc(scanf_conv_t *conv, const char ch);
+static void file_ungetc(scanf_conv_t *conv, const char ch);
+
+
+// "Global" helper methods used in scanf and printf
+static void parse_length(printf_conv_t *conversion);
+
+// Printf helper methods
+static void write_padding(printf_conv_t *conversion, bool ladjust, char fill);
+static void write_string(printf_conv_t *conversion, const char *s, size_t size);
+static void write_char(printf_conv_t *conversion, const char c);
+static void write_char_seq(printf_conv_t *conversion, const char c, size_t count);
+
+static void printf_parse_number(printf_conv_t *conversion, char *buffer, void* var);
+static void printf_parse_varg(printf_conv_t *conversion, char *buffer);
+static void printf_parse_flags(printf_conv_t *conversion);
+static void printf_parse_width(printf_conv_t *conversion);
+static char printf_parse_precision(printf_conv_t *conversion);
+
+// Conversion struct prepared by specific function and passed to generic printf
+static void generic_printf(printf_conv_t *conversion);
 
 //------------------------------------------------------------------------------------------
 //				Private function implementations
 //------------------------------------------------------------------------------------------
 
+static void str_putc(const char ch, printf_conv_t *conv)
+{
+	char **buffer = (char**)&conv->buffer;
+	*(*buffer)++ = ch;
+}
+
+static void stdio_putc(const char ch, printf_conv_t *conv)
+{
+	// We don't need to use the buffer variable
+	// as writing always refers to stdout
+	stdout->write(stdout, ch);
+}
+
+static void file_putc(const char ch, printf_conv_t *conv)
+{
+	FILE *file = (FILE*)conv->buffer;
+	fputc(ch, file);
+}
+
+static void str_puts(const char *str, size_t size, printf_conv_t *conv)
+{
+	char **buffer = (char**)&conv->buffer;
+	strncpy(*buffer, str, size);
+	*buffer += size;
+}
+
+static void stdio_puts(const char *str, size_t size, printf_conv_t *conv)
+{
+	for (size_t i = 0; i <= size; i++)
+		stdout->write(stdout, str[i]);
+}
+
+static void file_puts(const char *str, size_t size, printf_conv_t *conv)
+{
+	FILE *file = (FILE*)conv->buffer;
+
+	size++;
+	while(size-- > 0)
+		fputc(*str++, file);
+}
+
+static int str_getc(scanf_conv_t *conv)
+{
+	char **buffer = (char**)&conv->buffer;
+	char got = *++(*buffer);
+
+	if (got == '\0')
+		return EOF;
+	else
+		return (int)got;
+}
+
+static int stdio_getc(scanf_conv_t *conv)
+{
+	return (int)stdin->read(stdin);
+}
+
+static int file_getc(scanf_conv_t *conv)
+{
+	FILE *file = (FILE*)conv->buffer;
+	return fgetc(file);
+}
+
+static void str_ungetc(scanf_conv_t *conv, const char ch)
+{
+	char **buffer = (char**)&conv->buffer;
+	*--(*buffer) = ch;
+}
+
+static void stdio_ungetc(scanf_conv_t *conv, const char ch)
+{
+	// TODO: Implement ungetc for characterStream_t
+}
+
+static void file_ungetc(scanf_conv_t *conv, const char ch)
+{
+	FILE *file = (FILE*)conv->buffer;
+	ungetc(ch, file);
+}
+
+
 // Helper function printing the padding for the conversion
-static void write_padding(conversion_t *conversion, bool ladjust, char fill)
+static void write_padding(printf_conv_t *conversion, bool ladjust, char fill)
 {
 	if (conversion->minimal_width <= 0)
 		return;
 
-	if (ladjust != (conversion->flags & CONVERSION_FLAG_LADJUST))
+	if (ladjust != (conversion->flags & PRINTF_FLAG_LADJUST))
 		return;
 
 	write_char_seq(conversion, fill, conversion->minimal_width);
@@ -101,45 +240,44 @@ static void write_padding(conversion_t *conversion, bool ladjust, char fill)
 
 // Helper function to write a string to the buffer
 // updating the bufsz and written variables
-static void write_string(conversion_t *conversion, const char *s, size_t size)
+static void write_string(printf_conv_t *conversion, const char *s, size_t size)
 {
-	*conversion->written += size;
-	size = size > *conversion->bufsz - 1 ? *conversion->bufsz - 1 : size;
+	conversion->written += size;
+	size = size > conversion->bufsz - 1 ? conversion->bufsz - 1 : size;
 
-	strncpy(*conversion->buffer, s, size);
-	*conversion->buffer += size;
-	*conversion->bufsz -= size;
+	conversion->puts(s, size, conversion);
+	conversion->bufsz -= size;
 }
 
 // Helper function to write a char to the buffer
 // updating the bufsz and written variables
-static void write_char(conversion_t *conversion, const char c)
+static void write_char(printf_conv_t *conversion, const char c)
 {
-	(*conversion->written)++;
+	conversion->written++;
 
-	if (*conversion->bufsz > 1)
+	if (conversion->bufsz > 1)
 	{
-		*(*conversion->buffer)++ = c;
-		(*conversion->bufsz)--;
+		conversion->putc(c, conversion);
+		conversion->bufsz--;
 	}
 }
 
-static void write_char_seq(conversion_t *conversion, const char c, size_t count)
+static void write_char_seq(printf_conv_t *conversion, const char c, size_t count)
 {
-	*conversion->written += count;
+	conversion->written += count;
 
-	count = count > *conversion->bufsz - 1 ? *conversion->bufsz - 1 : count;
+	count = count > conversion->bufsz - 1 ? conversion->bufsz - 1 : count;
 
 	while (count--)
 	{
-		*(*conversion->buffer)++ = c;
-		(*conversion->bufsz)--;
+		conversion->putc(c, conversion);
+		conversion->bufsz--;
 	}
 }
 
-// Helper function to parse value by conversion specifier
+// Helper function to parse value by conversion->specifier
 // Pointer gets cast to signed or unsigned type accordingly
-static void parse_number(conversion_t *conversion, char* buffer, void* var)
+static void printf_parse_number(printf_conv_t *conversion, char* buffer, void* var)
 {
 	switch(conversion->specifier)
 	{
@@ -172,7 +310,7 @@ static void parse_number(conversion_t *conversion, char* buffer, void* var)
 }
 
 // Helper function to load value by length specifier
-static void parse_varg(conversion_t *conversion, char* buffer)
+static void printf_parse_varg(printf_conv_t *conversion, char* buffer)
 {
 	// Max value gets cast to needed value
 	uint64_t var;
@@ -182,161 +320,161 @@ static void parse_varg(conversion_t *conversion, char* buffer)
 		case CONVERSION_LENGTH_HH:
 		{
 			// First convert to int because of integer promotion in var args
-			var = (char)va_arg(*conversion->ap, int);
+			var = (char)va_arg(conversion->ap, int);
 			break;
 		}
 		case CONVERSION_LENGTH_H:
 		{
 			// First convert to int because of integer promotion in var args
-			var = (short)va_arg(*conversion->ap, int);
+			var = (short)va_arg(conversion->ap, int);
 			break;
 		}
 		case CONVERSION_LENGTH_NONE:
 		{
-			var = va_arg(*conversion->ap, int);
+			var = va_arg(conversion->ap, int);
 			break;
 		}
 		case CONVERSION_LENGTH_L:
 		{
-			var = va_arg(*conversion->ap, long);
+			var = va_arg(conversion->ap, long);
 			break;
 		}
 		case CONVERSION_LENGTH_LL:
 		{
-			var = va_arg(*conversion->ap, unsigned long long);
+			var = va_arg(conversion->ap, unsigned long long);
 			break;
 		}
 		case CONVERSION_LENGTH_J:
 		{
-			var = va_arg(*conversion->ap, uint64_t);
+			var = va_arg(conversion->ap, uint64_t);
 			break;
 		}
 		case CONVERSION_LENGTH_Z:
 		{
-			var = va_arg(*conversion->ap, size_t);
+			var = va_arg(conversion->ap, size_t);
 			break;
 		}
 		case CONVERSION_LENGTH_T:
 		{
-			var = va_arg(*conversion->ap, ptrdiff_t);
+			var = va_arg(conversion->ap, ptrdiff_t);
 			break;
 		}
 		default:
 			break;
 	}
 
-	parse_number(conversion, buffer, &var);
+	printf_parse_number(conversion, buffer, &var);
 }
 
 // Helper function to parse the flags for the conversion
-static void parse_flags(conversion_t *conversion)
+static void printf_parse_flags(printf_conv_t *conversion)
 {
-	while((*conversion->format)[0] && conversion->flags & CONVERSION_FLAG_PARSING)
+	while(conversion->format[0] && conversion->flags & PRINTF_FLAG_PARSING)
 	{
-		switch(*(conversion->format)[0])
+		switch(conversion->format[0])
 		{
 			case '-':
 			{
-				conversion->flags |= CONVERSION_FLAG_LADJUST;
+				conversion->flags |= PRINTF_FLAG_LADJUST;
 				break;
 			}
 			case '+':
 			{
-				conversion->flags |= CONVERSION_FLAG_SIGN;
+				conversion->flags |= PRINTF_FLAG_SIGN;
 				break;
 			}
 			case ' ':
 			{
-				conversion->flags |= CONVERSION_FLAG_SPACE;
+				conversion->flags |= PRINTF_FLAG_SPACE;
 				break;
 			}
 			case '#':
 			{
-				conversion->flags |= CONVERSION_FLAG_ALT;
+				conversion->flags |= PRINTF_FLAG_ALT;
 				break;
 			}
 			case '0':
 			{
-				conversion->flags |= CONVERSION_FLAG_ZERO;
+				conversion->flags |= PRINTF_FLAG_ZERO;
 				break;
 			}
 			default:
 			{
 				// Clear parsing flag
-				conversion->flags ^= CONVERSION_FLAG_PARSING;
-				(*conversion->format)--; // So we don't skip anything
+				conversion->flags ^= PRINTF_FLAG_PARSING;
+				conversion->format--; // So we don't skip anything
 				break;
 			}
 		}
-		(*conversion->format)++;
+		conversion->format++;
 	}
 }
 
 // Helper function to parse the specified minimal width
-static void parse_width(conversion_t *conversion)
+static void printf_parse_width(printf_conv_t *conversion)
 {
-	if ((*conversion->format)[0] == '*')
+	if (conversion->format[0] == '*')
 	{
-		conversion->minimal_width = va_arg(*conversion->ap, int);
-		(*conversion->format)++;
+		conversion->minimal_width = va_arg(conversion->ap, int);
+		conversion->format++;
 	}
-	else if (isdigit(*conversion->format[0]))
+	else if (isdigit(conversion->format[0]))
 	{
 		char* str_end;
-		conversion->minimal_width = (int)strtol(*conversion->format, &str_end, 10);
-		*conversion->format = str_end;
+		conversion->minimal_width = (int)strtol(conversion->format, &str_end, 10);
+		conversion->format = str_end;
 	}
 
 	if (conversion->minimal_width < 0)
 	{
-		conversion->flags |= CONVERSION_FLAG_LADJUST;
+		conversion->flags |= PRINTF_FLAG_LADJUST;
 		conversion->minimal_width *= -1;
 	}
 }
 
 // Helper function to parse the specified precision
 // Returns the character used for padding a converted integer
-static char parse_precision(conversion_t *conversion)
+static char printf_parse_precision(printf_conv_t *conversion)
 {
 	char fill = ' ';
 
-	if ((*conversion->format)[0] == '.')
+	if (conversion->format[0] == '.')
 	{
-		(*conversion->format)++;
-		conversion->flags |= CONVERSION_FLAG_PRECISION;
+		conversion->format++;
+		conversion->flags |= PRINTF_FLAG_PRECISION;
 		
-		if ((*conversion->format)[0] == '*')
+		if (conversion->format[0] == '*')
 		{
-			conversion->precision = va_arg(*conversion->ap, int);
-			(*conversion->format)++;
+			conversion->precision = va_arg(conversion->ap, int);
+			conversion->format++;
 		}
-		else if (isdigit(*conversion->format[0]))
+		else if (isdigit(conversion->format[0]))
 		{
 			char* str_end;
-			conversion->precision = (int)strtol(*conversion->format, &str_end, 10);
-			*conversion->format = str_end;
+			conversion->precision = (int)strtol(conversion->format, &str_end, 10);
+			conversion->format = str_end;
 		}
 
 		if (conversion->precision < 0)
 			conversion->precision = 0;
 	}
-	else if (conversion->flags & CONVERSION_FLAG_ZERO)
+	else if (conversion->flags & PRINTF_FLAG_ZERO)
 		fill = '0'; // Use '0' as padding only if precision not specified
 
 	return fill;
 }
 
 // Helper function to parse the length modifier
-static void parse_length(conversion_t *conversion)
+static void parse_length(printf_conv_t *conversion)
 {
-	switch((*conversion->format)[0])
+	switch(conversion->format[0])
 	{
 		case 'h':
 		{
-			if ((*conversion->format)[1] == 'h')
+			if (conversion->format[1] == 'h')
 			{
 				conversion->length = CONVERSION_LENGTH_HH;
-				(*conversion->format)++;
+				conversion->format++;
 			}
 			else
 				conversion->length = CONVERSION_LENGTH_H;
@@ -344,10 +482,10 @@ static void parse_length(conversion_t *conversion)
 		}
 		case 'l':
 		{
-			if ((*conversion->format)[1] == 'l')
+			if (conversion->format[1] == 'l')
 			{
 				conversion->length = CONVERSION_LENGTH_LL;
-				(*conversion->format)++;
+				conversion->format++;
 			}
 			else
 				conversion->length = CONVERSION_LENGTH_L;
@@ -370,11 +508,325 @@ static void parse_length(conversion_t *conversion)
 		}
 		default:
 		{
-			(*conversion->format)--; // So we don't skip anything
+			conversion->format--; // So we don't skip anything
 			break;
 		}
 	}
-	(*conversion->format)++;
+	conversion->format++;
+}
+
+static void generic_printf(printf_conv_t *conversion)
+{
+	if (!conversion->buffer || !conversion->format)
+	{
+		conversion->written = -1;
+		return;
+	}
+
+	const char **format = &conversion->format;
+	size_t *bufsz = &conversion->bufsz;
+
+	while(**format && *bufsz > 1)
+	{
+		if (**format == '%')
+		{
+			conversion->specifier = 0;
+			conversion->flags = 0;
+			conversion->length = 0;
+			conversion->precision = 0;
+			conversion->minimal_width = 0;
+
+			(*format)++;
+
+			// Parse optional flags
+			printf_parse_flags(conversion);
+
+			// Parse minimal width modifier
+			printf_parse_width(conversion);
+
+			// Parse precision
+			// Character used for padding (only applies to integer conversion->
+			char fill = printf_parse_precision(conversion);
+
+			// Parse length modifier
+			parse_length(conversion);
+
+			// Parse format specifier
+			conversion->specifier = **format;
+			switch (conversion->specifier)
+			{
+				case '%': // Print % symbol
+				{
+					// Full specifier must be %%
+					if (conversion->flags | conversion->length | conversion->minimal_width | conversion->precision)
+						break;
+
+					write_char(conversion, '%');
+
+					break;
+				}
+				case 'c': // Print char
+				{
+					conversion->written++;
+
+					// Specification says to first convert to unsigned char
+					unsigned char c = (unsigned char)va_arg(conversion->ap, int);
+					
+					conversion->minimal_width--;
+					write_padding(conversion, false, ' ');
+					
+					write_char(conversion, c);
+
+					write_padding(conversion, true, ' ');
+
+					break;
+				}
+				case 's': // Print string
+				{
+					char* s = va_arg(conversion->ap, char*);
+					size_t size = strlen(s);
+					
+					// Precision declares maximum characters to be printed
+					if (conversion->flags & PRINTF_FLAG_PRECISION)
+						size = size > (size_t)conversion->precision ? (size_t)conversion->precision : size;
+
+					conversion->minimal_width -= size;
+					write_padding(conversion, false, ' ');
+
+					write_string(conversion, s, size);
+					
+					write_padding(conversion, true, ' ');
+
+					break;
+				}
+				case 'd': // Print signed decimal
+				case 'i':
+				case 'u': // Print unsigned decimal
+				{
+					// Decimal representation takes up at most 21 characters
+					char repr[21] = { 0 };
+					printf_parse_varg(conversion, repr);
+					
+					size_t size = strlen(repr);
+
+					// Sign char calculated based on sign flag and sign of converted number
+					char sign = 0;
+					if (conversion->specifier != 'u')
+					{
+						if (repr[0] == '-')
+						{
+							memmove((void*)repr, (void*)(repr + 1), size);
+							sign = '-';
+							size--;
+						}
+						else if (conversion->flags & PRINTF_FLAG_SIGN)
+							sign = '+';
+						else if (conversion->flags & PRINTF_FLAG_SPACE)
+							sign = ' ';
+					}
+				
+					// Padding calculated depending on precision and zero flag
+					size_t padding = 0;
+					if (~conversion->flags & PRINTF_FLAG_PRECISION && conversion->flags & PRINTF_FLAG_ZERO)
+						padding = size > (size_t)conversion->minimal_width ? 0 : conversion->minimal_width - size;
+					else
+						padding = size > (size_t)conversion->precision ? 0 : conversion->precision - size;
+
+					// If precision and value both equal 0 nothing is printed
+					if (conversion->precision > 0 || repr[0] != '0')
+						conversion->minimal_width -= size + padding;
+
+					write_padding(conversion, false, fill);
+
+					// Only print if precision and representation not zero
+					if (conversion->precision > 0 || repr[0] != '0')
+					{
+						if (sign)
+							write_char(conversion, sign);
+
+						write_char_seq(conversion, '0', padding);
+						write_string(conversion, repr, size);
+					}
+
+					write_padding(conversion, true, fill);
+
+					break;
+				}
+				case 'o': // Print octal number
+				{
+					// Octal representation takes up at most 22 characters
+					char repr[22] = { 0 };
+					printf_parse_varg(conversion, repr);
+					
+					size_t size = strlen(repr);
+					
+					// Padding calculated depending on precision and zero flag
+					size_t padding = 0;
+					if (~conversion->flags & PRINTF_FLAG_PRECISION && conversion->flags & PRINTF_FLAG_ZERO)
+						padding = size > (size_t)conversion->minimal_width ? 0 : conversion->minimal_width - size;
+					else
+						padding = size > (size_t)conversion->precision ? 0 : conversion->precision - size;
+
+					// If precision and value both equal 0 nothing is printed
+					if (conversion->precision > 0 || repr[0] != '0')
+						conversion->minimal_width -= size + padding;
+
+					// Alternative representation reqires at least one leading zero
+					if (conversion->flags & PRINTF_FLAG_ALT)
+						conversion->minimal_width--;
+
+					write_padding(conversion, false, fill);
+
+					// Alternative representation prints a preceeding zero
+					if (conversion->flags & PRINTF_FLAG_ALT)
+						write_char(conversion, '0');
+					
+					// Only print if precision and representation not zero
+					if (conversion->precision > 0 || repr[0] != '0')
+					{
+						write_char_seq(conversion, '0', padding);
+						write_string(conversion, repr, size);
+					}
+
+					write_padding(conversion, true, fill);
+
+					break;
+				}
+				case 'x': // Print hexadecimal with lowercase letters
+				case 'X': // with uppercase letters
+				{
+					// Hexadecimal representation takes up at most 17 characters
+					char repr[17] = { 0 };
+					printf_parse_varg(conversion, repr);
+					
+					size_t size = strlen(repr);
+
+					// Upper or lower case depending in specifier;
+					for (size_t i = 0; i < size; i++)
+						repr[i] = islower(conversion->specifier) ? tolower(repr[i]) : repr[i];
+
+					// Padding calculated depending on precision and zero flag
+					size_t padding = 0;
+					if (~conversion->flags & PRINTF_FLAG_PRECISION && conversion->flags & PRINTF_FLAG_ZERO)
+						padding = size > (size_t)conversion->minimal_width ? 0 : conversion->minimal_width - size;
+					else
+						padding = size > (size_t)conversion->precision ? 0 : conversion->precision - size;
+
+					if (conversion->precision > 0 || repr[0] != '0')
+						conversion->minimal_width -= size + padding;
+
+					if (conversion->flags & PRINTF_FLAG_ALT && repr[0] != '0')
+						conversion->minimal_width -= 2;
+
+					write_padding(conversion, false, fill);
+
+					// Alternative representation prints 0x before the value
+					if (conversion->flags & PRINTF_FLAG_ALT && repr[0] != '0')
+					{
+						write_char(conversion, '0');
+						write_char(conversion, conversion->specifier); // x or X depending on specifier
+					}
+
+					// If precision and value both equal 0 nothing is printed
+					if (conversion->precision > 0 || repr[0] != '0')
+					{
+						write_char_seq(conversion, '0', padding);
+						write_string(conversion, repr, size);
+					}
+
+					write_padding(conversion, true, fill);
+
+					break;
+				}
+				case 'n': // Store characters written
+				{
+					void* var = va_arg(conversion->ap, void*);
+
+					switch(conversion->length)
+					{
+						case CONVERSION_LENGTH_HH:
+						{
+							*(char*)var = (char)conversion->written;
+							break;
+						}
+						case CONVERSION_LENGTH_H:
+						{
+							*(short*)var = (short)conversion->written;
+							break;
+						}
+						case CONVERSION_LENGTH_NONE:
+						{
+							*(int*)var = (int)conversion->written;
+							break;
+						}
+						case CONVERSION_LENGTH_L:
+						{
+							*(long*)var = (long)conversion->written;
+							break;
+						}
+						case CONVERSION_LENGTH_LL:
+						{
+							*(long long*)var = (long long)conversion->written;
+							break;
+						}
+						case CONVERSION_LENGTH_J:
+						{
+							*(int64_t*)var = (int64_t)conversion->written;
+							break;
+						}
+						case CONVERSION_LENGTH_Z:
+						{
+							*(size_t*)var = (size_t)conversion->written;
+							break;
+						}
+						case CONVERSION_LENGTH_T:
+						{
+							*(ptrdiff_t*)var = (ptrdiff_t)conversion->written;
+							break;
+						}
+						default:
+							break;
+					}
+
+					break;
+				}
+				case 'p': // Print pointer
+				{
+					uint32_t ptr = va_arg(conversion->ap, uint32_t);
+					char repr[11] = { '0', 'x', 0 };
+					uitoa((size_t)ptr, repr + 2, 16, true);
+					
+					conversion->minimal_width -= 10;
+					write_padding(conversion, false, ' ');
+
+					write_string(conversion, repr, 10);
+
+					write_padding(conversion, true, ' ');
+
+					break;
+				}
+				default:
+					format--; // So we don't skip anything
+					break;
+			}
+		}
+		else
+		{
+			// Write character from format
+			conversion->written++;
+			if (*bufsz > 1)
+			{
+				conversion->putc(**format, conversion);
+				(*bufsz)--;
+			}
+		}
+
+		(*format)++;
+	}
+
+	// Terminal with null byte
+	if (bufsz)
+		conversion->putc('\0', conversion);
 }
 
 //------------------------------------------------------------------------------------------
@@ -436,7 +888,10 @@ int fgetc(FILE *stream)
 	return vfsGetc(stream);
 }
 
-#define getc(stream) fgetc(stream)               // May be defined as a macro as it does the same as fgetc
+int getc(FILE *stream)
+{
+	return vfsGetc(stream);
+}
 
 char *fgets(char *str, int count, FILE *stream)
 {
@@ -448,7 +903,10 @@ int fputc(int ch, FILE *stream)
 	return vfsPutc(ch, stream);
 }
 
-#define putc(ch, stream) fputc(ch, stream)
+int putc(int ch, FILE *stream)
+{
+	return vfsPutc(ch, stream);
+}
 
 int fputs(const char *str, FILE *stream)
 {
@@ -528,8 +986,29 @@ int vscanf(const char *format, va_list ap);
 int vfscanf(FILE *stream, const char *format, va_list ap);
 int vsscanf(const char *buffer, const char *format, va_list ap);
 
-int printf(const char *format, ...);
-int fprintf(FILE *stream, const char *format, ...);
+int printf(const char *format, ...)
+{
+	va_list ap;
+	va_start(ap, format);
+
+	int written = vprintf(format, ap);
+
+	va_end(ap);
+
+	return written;
+}
+
+int fprintf(FILE *stream, const char *format, ...)
+{
+	va_list ap;
+	va_start(ap, format);
+
+	int written = vfprintf(stream, format, ap);
+
+	va_end(ap);
+
+	return written;
+}
 
 int sprintf(char *buffer, const char *format, ...)
 {
@@ -556,322 +1035,59 @@ int snprintf(char *buffer, size_t bufsz, const char *format, ...)
 	return written;
 }
 
-int vprintf(const char *format, va_list ap);
-int vfprintf(FILE *stream, const char *format, va_list ap);
+int vprintf(const char *format, va_list ap)
+{
+	printf_conv_t conversion = { 0 };
+
+	conversion.ap = ap;
+	conversion.buffer = (uintptr_t)stdout;
+	conversion.bufsz = INT_MAX;
+	conversion.putc = (printf_putc_callback)stdio_putc;
+	conversion.puts = (printf_puts_callback)stdio_puts;
+	conversion.format = format;
+
+	generic_printf(&conversion);
+
+	return conversion.written;
+}
+
+int vfprintf(FILE *stream, const char *format, va_list ap)
+{
+	printf_conv_t conversion = { 0 };
+
+	conversion.ap = ap;
+	conversion.buffer = (uintptr_t)stream;
+	conversion.bufsz = INT_MAX;
+	conversion.putc = (printf_putc_callback)file_putc;
+	conversion.puts = (printf_puts_callback)file_puts;
+	conversion.format = format;
+
+	generic_printf(&conversion);
+
+	return conversion.written;
+}
 
 int vsprintf(char *buffer, const char *format, va_list ap)
 {
 	// To prevent code duplication the maximum return value
-	// for the architecture is used	
+	// for the architecture is used
 	return vsnprintf(buffer, INT_MAX, format, ap);
 }
 
 int vsnprintf(char *buffer, size_t bufsz, const char *format, va_list ap)
 {
-	if (!buffer || !format)
-		return -1;
+	printf_conv_t conversion = { 0 };
 
-	int written = 0;
+	conversion.ap = ap;
+	conversion.buffer = (uintptr_t)buffer;
+	conversion.bufsz = bufsz;
+	conversion.putc = (printf_putc_callback)str_putc;
+	conversion.puts = (printf_puts_callback)str_puts;
+	conversion.format = format;
 
-	while(format[0] && bufsz > 1)
-	{
-		if (format[0] == '%')
-		{
-			conversion_t conversion = { CONVERSION_FLAG_PARSING, 0, 1, 0, 0, &format, &buffer, &bufsz, &written, &ap };
-			format++;
+	generic_printf(&conversion);
 
-			// Parse optional flags
-			parse_flags(&conversion);
-
-			// Parse minimal width modifier
-			parse_width(&conversion);
-
-			// Parse precision
-			// Character used for padding (only applies to integer conversion)
-			char fill = parse_precision(&conversion);
-
-			// Parse length modifier
-			parse_length(&conversion);
-
-			// Parse format specifier
-			conversion.specifier = format[0];
-			switch (conversion.specifier)
-			{
-				case '%': // Print % symbol
-				{
-					// Full specifier must be %%
-					if (conversion.flags | conversion.length | conversion.minimal_width | conversion.precision)
-						break;
-
-					write_char(&conversion, '%');
-
-					break;
-				}
-				case 'c': // Print char
-				{
-					written++;
-
-					// Specification says to first convert to unsigned char
-					unsigned char c = (unsigned char)va_arg(ap, int);
-					
-					conversion.minimal_width--;
-					write_padding(&conversion, false, ' ');
-					
-					write_char(&conversion, c);
-
-					write_padding(&conversion, true, ' ');
-
-					break;
-				}
-				case 's': // Print string
-				{
-					char* s = va_arg(ap, char*);
-					size_t size = strlen(s);
-					
-					// Precision declares maximum characters to be printed
-					if (conversion.flags & CONVERSION_FLAG_PRECISION)
-						size = size > (size_t)conversion.precision ? (size_t)conversion.precision : size;
-
-					conversion.minimal_width -= size;
-					write_padding(&conversion, false, ' ');
-
-					write_string(&conversion, s, size);
-					
-					write_padding(&conversion, true, ' ');
-
-					break;
-				}
-				case 'd': // Print signed decimal
-				case 'i':
-				case 'u': // Print unsigned decimal
-				{
-					// Decimal representation takes up at most 21 characters
-					char repr[21] = { 0 };
-					parse_varg(&conversion, repr);
-					
-					size_t size = strlen(repr);
-
-					// Sign char calculated based on sign flag and sign of converted number
-					char sign = 0;
-					if (conversion.specifier != 'u')
-					{
-						if (repr[0] == '-')
-						{
-							memmove((void*)repr, (void*)(repr + 1), size);
-							sign = '-';
-							size--;
-						}
-						else if (conversion.flags & CONVERSION_FLAG_SIGN)
-							sign = '+';
-						else if (conversion.flags & CONVERSION_FLAG_SPACE)
-							sign = ' ';
-					}
-				
-					// Padding calculated depending on precision and zero flag
-					size_t padding = 0;
-					if (~conversion.flags & CONVERSION_FLAG_PRECISION && conversion.flags & CONVERSION_FLAG_ZERO)
-						padding = size > (size_t)conversion.minimal_width ? 0 : conversion.minimal_width - size;
-					else
-						padding = size > (size_t)conversion.precision ? 0 : conversion.precision - size;
-
-					// If precision and value both equal 0 nothing is printed
-					if (conversion.precision > 0 || repr[0] != '0')
-						conversion.minimal_width -= size + padding;
-
-					write_padding(&conversion, false, fill);
-
-					// Only print if precision and representation not zero
-					if (conversion.precision > 0 || repr[0] != '0')
-					{
-						if (sign)
-							write_char(&conversion, sign);
-
-						write_char_seq(&conversion, '0', padding);
-						write_string(&conversion, repr, size);
-					}
-
-					write_padding(&conversion, true, fill);
-
-					break;
-				}
-				case 'o': // Print octal number
-				{
-					// Octal representation takes up at most 22 characters
-					char repr[22] = { 0 };
-					parse_varg(&conversion, repr);
-					
-					size_t size = strlen(repr);
-					
-					// Padding calculated depending on precision and zero flag
-					size_t padding = 0;
-					if (~conversion.flags & CONVERSION_FLAG_PRECISION && conversion.flags & CONVERSION_FLAG_ZERO)
-						padding = size > (size_t)conversion.minimal_width ? 0 : conversion.minimal_width - size;
-					else
-						padding = size > (size_t)conversion.precision ? 0 : conversion.precision - size;
-
-					// If precision and value both equal 0 nothing is printed
-					if (conversion.precision > 0 || repr[0] != '0')
-						conversion.minimal_width -= size + padding;
-
-					// Alternative representation reqires at least one leading zero
-					if (conversion.flags & CONVERSION_FLAG_ALT)
-						conversion.minimal_width--;
-
-					write_padding(&conversion, false, fill);	
-
-					// Alternative representation prints a preceeding zero
-					if (conversion.flags & CONVERSION_FLAG_ALT)
-						write_char(&conversion, '0');
-					
-					// Only print if precision and representation not zero
-					if (conversion.precision > 0 || repr[0] != '0')
-					{
-						write_char_seq(&conversion, '0', padding);
-						write_string(&conversion, repr, size);
-					}
-
-					write_padding(&conversion, true, fill);
-
-					break;
-				}
-				case 'x': // Print hexadecimal with lowercase letters
-				case 'X': // with uppercase letters
-				{
-					// Hexadecimal representation takes up at most 17 characters
-					char repr[17] = { 0 };
-					parse_varg(&conversion, repr);
-					
-					size_t size = strlen(repr);
-
-					// Upper or lower case depending in specifier;
-					for (size_t i = 0; i < size; i++)
-						repr[i] = islower(conversion.specifier) ? tolower(repr[i]) : repr[i];
-
-					// Padding calculated depending on precision and zero flag
-					size_t padding = 0;
-					if (~conversion.flags & CONVERSION_FLAG_PRECISION && conversion.flags & CONVERSION_FLAG_ZERO)
-						padding = size > (size_t)conversion.minimal_width ? 0 : conversion.minimal_width - size;
-					else
-						padding = size > (size_t)conversion.precision ? 0 : conversion.precision - size;
-
-					if (conversion.precision > 0 || repr[0] != '0')
-						conversion.minimal_width -= size + padding;
-
-					if (conversion.flags & CONVERSION_FLAG_ALT && repr[0] != '0')
-						conversion.minimal_width -= 2;
-
-					write_padding(&conversion, false, fill);	
-
-					// Alternative representation prints 0x before the value
-					if (conversion.flags & CONVERSION_FLAG_ALT && repr[0] != '0')
-					{
-						write_char(&conversion, '0');
-						write_char(&conversion, conversion.specifier); // x or X depending on specifier
-					}
-
-					// If precision and value both equal 0 nothing is printed
-					if (conversion.precision > 0 || repr[0] != '0')
-					{
-						write_char_seq(&conversion, '0', padding);
-						write_string(&conversion, repr, size);
-					}
-
-					write_padding(&conversion, true, fill);
-
-					break;
-				}
-				case 'n': // Store characters written
-				{
-					void* var = va_arg(ap, void*);
-
-					switch(conversion.length)
-					{
-						case CONVERSION_LENGTH_HH:
-						{	
-							*(char*)var = (char)written;
-							break;
-						}
-						case CONVERSION_LENGTH_H:
-						{
-							*(short*)var = (short)written;
-							break;
-						}
-						case CONVERSION_LENGTH_NONE:
-						{
-							*(int*)var = (int)written;
-							break;
-						}
-						case CONVERSION_LENGTH_L:
-						{
-							*(long*)var = (long)written;
-							break;
-						}
-						case CONVERSION_LENGTH_LL:
-						{
-							*(long long*)var = (long long)written;
-							break;
-						}
-						case CONVERSION_LENGTH_J:
-						{
-							*(int64_t*)var = (int64_t)written;
-							break;
-						}
-						case CONVERSION_LENGTH_Z:
-						{
-							*(size_t*)var = (size_t)written;
-							break;
-						}
-						case CONVERSION_LENGTH_T:
-						{
-							*(ptrdiff_t*)var = (ptrdiff_t)written;
-							break;
-						}
-						default:
-							break;
-					}
-
-					break;
-				}
-				case 'p': // Print pointer
-				{
-					uint32_t ptr = va_arg(ap, uint32_t);
-					char repr[11] = { '0', 'x', 0 };
-					uitoa((size_t)ptr, repr + 2, 16, true);
-					
-					conversion.minimal_width -= 10;
-					write_padding(&conversion, false, ' ');	
-
-					write_string(&conversion, repr, 10);
-
-					write_padding(&conversion, true, ' ');
-
-					break;
-				}
-				default:
-					format--; // So we don't skip anything
-					break;
-			}
-		}
-		else
-		{
-			// Write character from format
-			written++;
-			if (bufsz > 1)
-			{
-				*buffer++ = format[0];
-				bufsz--;
-			}
-		}
-
-		format++;
-	}
-
-	// Terminal with null byte
-	if (bufsz)
-		*buffer++ = 0;
-
-	// Return number of characters that would've been written without bufsz limit
-	return written;
+	return conversion.written;
 }
 
 long ftell(FILE *stream)

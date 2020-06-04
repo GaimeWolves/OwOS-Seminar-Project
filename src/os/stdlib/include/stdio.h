@@ -45,11 +45,11 @@ size_t fread(void *buffer, size_t size, size_t count, FILE *stream);
 size_t fwrite(const void *buffer, size_t size, size_t count, FILE *stream);
 
 int fgetc(FILE *stream);
-#define getc(stream) fgetc(stream)               // May be defined as a macro as it does the same as fgetc
+int getc(FILE *stream);
 char *fgets(char *str, int count, FILE *stream);
 
 int fputc(int ch, FILE *stream);
-#define putc(ch, stream) fputc(ch, stream)
+int putc(int ch, FILE *stream);
 int fputs(const char *str, FILE *stream);
 
 int getchar();
