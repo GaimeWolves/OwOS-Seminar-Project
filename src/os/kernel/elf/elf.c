@@ -36,7 +36,7 @@ bool is_elf_valid(ELF_FILE* file)
 			&& header->header_version == HV_CURRENT
 			&& header->elf_class == HC_32
 			&& header->version == HV_CURRENT
-			&& header->type == HT_EXEC;
+			&& (header->type == HT_EXEC || header->type == HT_DYN);
 }
 //Get reference to ELF header struct in file
 ELF_header_t* get_elf_header(ELF_FILE* file)
