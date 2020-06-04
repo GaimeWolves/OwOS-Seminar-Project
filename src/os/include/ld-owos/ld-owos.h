@@ -84,6 +84,10 @@ typedef struct
 		buffer_pointer = kmalloc(size); \
 		vfsSeek(libinfo->file->file, offset, SEEK_SET); \
 		vfsRead(libinfo->file->file, (void*)buffer_pointer, size);
+//Frees the space of a libinfo pointer
+#define LIBINFO_FREE(i) \
+		dispose_elf_file_struct(libinfo->file); \
+		kfree(libinfo);
 
 //------------------------------------------------------------------------------------------
 //				Variables

@@ -95,8 +95,8 @@ static int handle_needed_libs(char* name)
 		{
 			if(strcmp(LIBINFO_NAME(loaded_libs[i]), LIBINFO_NAME(libinfo)) == 0)
 			{
-				dispose_elf_file_struct(libinfo->file);
-				kfree(libinfo);
+				//Free memory
+				LIBINFO_FREE(libinfo)
 				return 0;
 			}
 		}

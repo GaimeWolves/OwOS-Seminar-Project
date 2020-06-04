@@ -139,7 +139,22 @@ int linker_main(characterStream_t* in_stream, characterStream_t* out_stream, cha
 		returnCode = program_entry(argc, argv);
 	}
 
-	//FIXME: FREE MEMORY
+	//Free memory
+	for(size_t i = loaded_lib_count - 1; i > 0; i--)
+	{
+		
+		if(strcmp(LIBINFO_NAME(loaded_libs[i]), "libkernel.so") == 0)
+		{
+			kfree(loaded_libs[i]->string_table_base);
+			kfree(loaded_libs[i]->symbol_table_base);
+		}
+		else
+			pmmFreeContinuous(loaded_libs[i]->base_address, loaded_libs[i]->page_count);
+
+		//Free libinfo
+		LIBINFO_FREE(loaded_libs[i])
+	}
+	loaded_lib_count = 0;
 
 	//return the return code of the application or if the initialization failed of process_program_header
 	return returnCode;
@@ -148,24 +163,34 @@ int linker_main(characterStream_t* in_stream, characterStream_t* out_stream, cha
 //EXCEPTIONS:
 //	- 1: Executable is not position independant
 //	- 2: Could not get memory from the PMM
-//	- 3: Too many shared libraries
+//	- 3: Wrong dynamic linker
+//	- 4: Too many shared libraries
 //	-10: process_dynamic_section
 int process_program_header(libinfo_t* libinfo)
 {
 	//Test if we loaded this lib already
 	if(test_already_loaded(libinfo))
 	{
-		//FIXME: FREE LIBINFO
+		//Free the allocated memory
+		LIBINFO_FREE(libinfo)
 		return 0;
 	}
 
 	//We can't use not-pie executables
 	if(!test_pie(get_elf_section_header_info(libinfo->file)))
+	{
+		//Free the allocated memory
+		LIBINFO_FREE(libinfo)
 		return -1;
+	}
 
 	//Something in page allocation failed
 	if(getPages(libinfo))
+	{
+		//Free the allocated memory
+		LIBINFO_FREE(libinfo)
 		return -2;
+	}
 
 	//Dynamic section program header entry
 	ELF_program_header_entry_t* needLinking = NULL;
@@ -198,7 +223,11 @@ int process_program_header(libinfo_t* libinfo)
 					break;
 				//Wrong linker
 				if(!test_demanded_linker(libinfo, current_header))
+				{
+					//Free the allocated memory
+					LIBINFO_FREE(libinfo)
 					return -3;
+				}
 				break;
 			case PHT_NOTE:
 			case PHT_SHLIB:
@@ -215,7 +244,8 @@ int process_program_header(libinfo_t* libinfo)
 	if(loaded_lib_count == MAX_LOADED_LIBS)
 	{
 		//FIXME: HANDLE OUT OF ARRAY SPACE
-		return -3;
+		LIBINFO_FREE(libinfo)
+		return -4;
 	}
 
 	loaded_libs[loaded_lib_count++] = libinfo;
