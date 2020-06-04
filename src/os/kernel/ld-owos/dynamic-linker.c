@@ -353,7 +353,6 @@ int process_dynamic_section(libinfo_t* libinfo, ELF_program_header_entry_t* entr
 			case DST_RELENT:
 				//Set the according var
 				libinfo->reloc_info.entry_size = dyn_entry->value.val;
-				libinfo->plt_got_info.entry_size = dyn_entry->value.val;
 				break;
 
 			case DST_JMPREL:
@@ -429,7 +428,10 @@ int process_dynamic_section(libinfo_t* libinfo, ELF_program_header_entry_t* entr
 
 	//Process plt relocation
 	if(libinfo->plt_got_info.type != RELOC_NULL)
+	{
+		libinfo->plt_got_info.entry_size = libinfo->plt_got_info.type == RELOC_REL ? sizeof(ELF_Rel) : libinfo->plt_got_info.type == RELOC_RELA ? sizeof(ELF_Rela) : 0;
 		process_relocation(libinfo, libinfo->plt_got_info);
+	}
 	if(returnCode)
 		return returnCode - 10;
 
