@@ -4,10 +4,16 @@
 //				Includes
 //------------------------------------------------------------------------------------------
 #include <elf/elf.h>
+
 #include <memory/pmm.h>
 #include <memory/heap.h>
+
 #include <vfs/vfs.h>
+
 #include <string.h>
+#include <stdbool.h>
+
+#include <attribute_defs.h>
 
 //------------------------------------------------------------------------------------------
 //				Macro
@@ -24,31 +30,31 @@
 //------------------------------------------------------------------------------------------
 //				Private function
 //------------------------------------------------------------------------------------------
-int test_demanded_linker(ELF_program_header_entry_t* entry, FILE* file_descriptor)
+//Handles the INTERP entry in the program headers
+//Returns true if we can handle it
+static bool test_demanded_linker(libinfo_t* libinfo, ELF_program_header_entry_t* entry)
 {
 	//Returncode
-	int returnCode = 0;
+	bool returnCode = true;
+	char* buffer;
 
-	//Get buffer of the specified size
-	char* buffer = kmalloc(entry->memory_size);
+	//Load the specified file offset 
+	READ_FROM_DISK(libinfo, buffer, entry->offset, entry->segment_size)
 
-	//Load from the specified offset
-	vfsSeek(file_descriptor, entry->offset, SEEK_SET);
-	//Load specified count to our buffer
-	vfsRead(file_descriptor, buffer, entry->segment_size);
-
-	//Compare with our name
-	if(!strcmp(buffer, "ld-owos"))
-		returnCode = -1;
+	//Compare the loaded string with our name
+	if(strcmp(buffer, "ld-owos") != 0)
+		returnCode = false;
 	
 	//Free buffer
 	kfree(buffer);
 
 	return returnCode;
 }
-
-int getPages(libinfo_t* libinfo)
+//Calculates the count of the needed PMM pages and allocates them
+//Sets the fields of the libinfo struct accordingly
+static int getPages(libinfo_t* libinfo)
 {
+	//Get the lowest and the highest program header load address
 	size_t minAddress = (size_t)-1;
 	size_t maxAddress = 0;
 
@@ -70,24 +76,27 @@ int getPages(libinfo_t* libinfo)
 		}
 	}
 
+	//Calculate needed memory
 	size_t address_space_byte_count = maxAddress - minAddress;
 	size_t pages = address_space_byte_count / PMM_BLOCK_SIZE;
 
+	//Allocate it
 	void* base = pmmAllocContinuous(pages);
 
+	//Set vars
 	libinfo->base_address = base;
 	libinfo->page_count = pages;
 
-	return 0;
+	return base ? 0 : -1;
 }
-
-bool test_pie(ELF_section_header_info_t* header)
+//Checks if the library is position independant
+static bool test_pie(ELF_section_header_info_t* header)
 {
 	//FIXME: IMPLEMENT
 	return true;
 }
-
-bool test_already_loaded(libinfo_t* libinfo)
+//Checks if the library is already loaded
+static bool test_already_loaded(libinfo_t* libinfo)
 {
 	for(size_t i = 0; i < loaded_lib_count; i++)
 	{
@@ -100,6 +109,10 @@ bool test_already_loaded(libinfo_t* libinfo)
 //------------------------------------------------------------------------------------------
 //				Public function
 //------------------------------------------------------------------------------------------
+
+//Load the executable specified by executable an initialisze it with the given streams and the command line args
+//EXCEPTIONS:
+//	-1000: Could not parse executable file
 int linker_main(characterStream_t* in_stream, characterStream_t* out_stream, characterStream_t* err_stream, FILE* executable, int argc, char *argv[])
 {
 	//Set stream vars
@@ -107,26 +120,36 @@ int linker_main(characterStream_t* in_stream, characterStream_t* out_stream, cha
 	out_stream_var = out_stream;
 	err_stream_var = err_stream;
 
+	//Extend the file to an ELF file
 	ELF_FILE* file = create_elf_file_struct(executable);
 	if(!file)
 		return -1000;
 
+	//Extend the ELF_FILE to an library
 	libinfo_t* libinfo = kzalloc(sizeof(libinfo_t));
 	libinfo->file = file;
 
+	//Process program headers and if it returns with 0 execute the program with the given command line args
 	int returnCode;
-	if(!process_program_header(libinfo))
+	if(!(returnCode = process_program_header(libinfo)))
 	{
 		int (*program_entry)(int argc, char *argv[]);
 		program_entry = get_elf_header(file)->entry_point + libinfo->base_address;
 
 		returnCode = program_entry(argc, argv);
 	}
+
 	//FIXME: FREE MEMORY
 
+	//return the return code of the application or if the initialization failed of process_program_header
 	return returnCode;
 }
-
+//Processes the program header of a library
+//EXCEPTIONS:
+//	- 1: Executable is not position independant
+//	- 2: Could not get memory from the PMM
+//	- 3: Too many shared libraries
+//	-10: process_dynamic_section
 int process_program_header(libinfo_t* libinfo)
 {
 	//Test if we loaded this lib already
@@ -136,7 +159,7 @@ int process_program_header(libinfo_t* libinfo)
 		return 0;
 	}
 
-	//We can't use not pie executables
+	//We can't use not-pie executables
 	if(!test_pie(get_elf_section_header_info(libinfo->file)))
 		return -1;
 
@@ -144,8 +167,10 @@ int process_program_header(libinfo_t* libinfo)
 	if(getPages(libinfo))
 		return -2;
 
+	//Dynamic section program header entry
 	ELF_program_header_entry_t* needLinking = NULL;
 
+	//Process each program header entry
 	ELF_program_header_info_t* header = get_elf_program_header_info(libinfo->file);
 	for(uint16_t i = 0; i < header->entry_count; i++)
 	{
@@ -164,6 +189,7 @@ int process_program_header(libinfo_t* libinfo)
 				memset(not_in_file_space_in_memory_start, 0, not_in_file_space);
 				break;
 			case PHT_DYNAMIC:
+				//Save the header of the dynamic section
 				needLinking = current_header;
 				break;
 			case PHT_INTERP:
@@ -171,7 +197,7 @@ int process_program_header(libinfo_t* libinfo)
 				if(get_elf_header(libinfo->file)->type != HT_EXEC)
 					break;
 				//Wrong linker
-				if(!test_demanded_linker(current_header, libinfo->file->file))
+				if(!test_demanded_linker(libinfo, current_header))
 					return -3;
 				break;
 			case PHT_NOTE:
@@ -189,14 +215,17 @@ int process_program_header(libinfo_t* libinfo)
 	if(loaded_lib_count == MAX_LOADED_LIBS)
 	{
 		//FIXME: HANDLE OUT OF ARRAY SPACE
+		return -3;
 	}
 
 	loaded_libs[loaded_lib_count++] = libinfo;
 
+	//If there was a dynamic section entry process the dynamic section
 	if(needLinking)
 	{
-		if(process_dynamic_section(libinfo, needLinking))
-			return -10;
+		int returnCode;
+		if(returnCode = process_dynamic_section(libinfo, needLinking))
+			return returnCode - 10;
 	}
 
 	return 0;
