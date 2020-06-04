@@ -90,6 +90,17 @@ static int handle_needed_libs(char* name)
 	//Special handling for kernel linkage
 	if(strcmp(name, "libkernel.so") == 0)
 	{
+		//Test if already loaded
+		for(size_t i = 0; i < loaded_lib_count; i++)
+		{
+			if(strcmp(LIBINFO_NAME(loaded_libs[i]), LIBINFO_NAME(libinfo)) == 0)
+			{
+				dispose_elf_file_struct(libinfo->file);
+				kfree(libinfo);
+				return 0;
+			}
+		}
+
 		//We can only have MAX_LOADED_LIBS libraries
 		if(loaded_lib_count == MAX_LOADED_LIBS)
 			return -3;
