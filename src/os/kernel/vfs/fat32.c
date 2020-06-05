@@ -1401,7 +1401,23 @@ static size_t doFileOperation(file_desc_t *file, size_t offset, size_t size, cha
 		amount = end - start; // Bytes to read/write
 
 		if (write)
+		{
+			//If we don't write from start to end of the cluster get the content of the cluster
+			if(start != 0 || end != bpc)
+			{
+				if (doClusterOperation(tmpBuf, file->mount, chain, i, false))
+				{
+					debug_set_color(0x0C, 0x00);
+					debug_print("Failed to operate on cluster");
+					debug_set_color(0x0F, 0x00);
+
+					deleteClusterChain(chain);
+					kfree(tmpBuf);
+					return index;
+				}
+			}
 			memcpy(tmpBuf + start, buf + index, amount);
+		}
 		
 		if (doClusterOperation(tmpBuf, file->mount, chain, i, write))
 		{
