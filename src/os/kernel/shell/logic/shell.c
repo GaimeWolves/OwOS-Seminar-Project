@@ -8,21 +8,131 @@
 #include <hal/cpu.h>
 
 #include <stdnoreturn.h>
+#include <stdbool.h>
 
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
+typedef struct shell_state
+{
+	bool is_quotation_mark;
+	bool is_escaped;
+} shell_state_t;
 
 //------------------------------------------------------------------------------------------
 //				Local Vars
 //------------------------------------------------------------------------------------------
+static shell_state_t shell_state;
+
+static char* buffer;
+static size_t buffer_index;
+static size_t shell_line_index;
 
 //------------------------------------------------------------------------------------------
 //				Private Function
 //------------------------------------------------------------------------------------------
-void shell_handle_input(char* input)
+static void shell_handle_input(char* input)
 {
 	//FIXME: HANDLE INPUT
+}
+
+static void shell_handle_input_normal_char(char c)
+{
+	if(shell_state.is_escaped)
+	{
+		shell_state.is_escaped = false;
+		shell_handle_input_normal_char('\\');
+	}
+
+	if(buffer_index < SHELL_MAX_INPUT_BUFFER)
+	{
+		//Handle logical change
+		buffer[buffer_index++] = c;
+		shell_line_index++;
+		//Handle graphical change
+		shell_frame_handle_input(c);
+	}
+	else
+	{
+		//FIXME: HANDLE FULL BUFFER
+		halt();
+	}
+}
+static bool shell_handle_input_char(char c)
+{
+	bool ret = true;
+
+	switch(c)
+	{
+		case 8://Backspace
+			if(shell_line_index)
+			{
+				//Handle logical change
+				buffer_index--;
+				shell_line_index--;
+				if(shell_state.is_escaped)
+					shell_state.is_escaped = false;
+				if(buffer[buffer_index] == '"' && buffer_index > 0 && buffer[buffer_index - 1] != '\\')
+					shell_state.is_quotation_mark = !shell_state.is_quotation_mark;
+				if(buffer[buffer_index - 1] == '\\')
+				{
+					buffer_index--;
+					shell_state.is_escaped = true;
+				}
+					
+				//Handle graphical change
+				shell_frame_handle_backspace();
+			}
+			break;
+		case '\\':
+			if(!shell_state.is_escaped)
+			{
+				//Handle graphical change
+				shell_handle_input_normal_char('\\');
+				//Handle logical change
+				shell_state.is_escaped = true;
+				break;
+			}
+			else
+			{
+				//Handle graphical change
+				shell_handle_input_normal_char('\\');
+			}
+			break;
+		case '"'://Quotation mark
+			if(!shell_state.is_escaped)
+				shell_state.is_quotation_mark = !shell_state.is_quotation_mark;
+			shell_handle_input_normal_char('"');
+			break;
+		case '\n'://Return
+			//If it is excaped it just means newline in shell
+			if(shell_state.is_escaped)
+			{
+				//Handle logical change
+				shell_line_index = 0;
+				buffer_index--;
+				shell_state.is_escaped = false;
+				//Handle graphical change
+				shell_frame_handle_input('\n');
+				break;
+			}
+			//If we are not in between of quotation marks this is the end of input
+			if(!shell_state.is_quotation_mark)
+			{
+				//End of input
+				ret = false;
+				//Handle graphical change
+				shell_frame_handle_input('\n');
+				break;
+			}
+			//Otherwise it's a normal character
+			shell_line_index = 0;
+		default://Any character with no special meaning
+			shell_handle_input_normal_char(c);
+			break;
+	}
+
+	return ret;
 }
 
 //------------------------------------------------------------------------------------------
@@ -37,45 +147,23 @@ void shell_init(void)
 
 noreturn void shell_start(void)
 {
-	char* buffer = (char*)kmalloc(SHELL_MAX_INPUT_BUFFER);
-	size_t buffer_index;
+	buffer = (char*)kmalloc(SHELL_MAX_INPUT_BUFFER);
 
 	characterStream_t* in_stream = shell_in_stream_get();
 	open(in_stream);
 
 	while(true)
 	{
+		//Reset buffer
 		buffer_index = 0;
+		shell_line_index = 0;
+		//Print shell hello line
 		shell_frame_print_shell_line();
 
-		char temp_c;
-		while((temp_c = read(in_stream)) != '\n')
-		{
-			if(temp_c == 8) //BACKSPACE
-			{
-				if(buffer_index)
-				{
-					shell_frame_handle_backspace();
-					buffer_index--;
-				}
+		//Loop until input handler says to stop
+		while(shell_handle_input_char(read(in_stream)));
 
-				continue;
-			}
-
-			if(buffer_index < SHELL_MAX_INPUT_BUFFER)
-			{
-				buffer[buffer_index++] = temp_c;
-
-				shell_frame_handle_input(temp_c);
-			}
-			else
-			{
-				//FIXME: HANDLE FULL BUFFER
-				halt();
-			}
-		}
-		shell_frame_handle_input('\n');
-
+		//Process input
 		shell_handle_input(buffer);
 	}
 }
