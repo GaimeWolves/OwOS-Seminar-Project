@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------------------
 #include <stdint.h>
 #include <stdbool.h>
+#include <stream/stream.h>
 
 //------------------------------------------------------------------------------------------
 //				Constants
@@ -102,7 +103,8 @@
 //------------------------------------------------------------------------------------------
 int initKeyboard();
 
-void getc(char* x);
+void kbSetCharacterStream(characterStream_t* x);
+void kbClearCharacterStream(void);
 bool kbWasPressed(uint8_t keycode);
 bool kbWasReleased(uint8_t keycode);
 bool kbIsPressed(uint8_t keycode);

@@ -1,6 +1,7 @@
 #include <shell/in_stream.h>
 
 #include <stream/bufferedStream.h>
+#include <keyboard.h>
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
@@ -21,7 +22,7 @@ void shell_in_stream_init(void)
 {
 	shell_in_stream = createBufferedStream();
 
-	//FIXME: ADD KEYBOARD INTERACTION
+	kbSetCharacterStream(&shell_in_stream->stream);
 }
 
 characterStream_t* shell_in_stream_get(void)

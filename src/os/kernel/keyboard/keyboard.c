@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------------------
 #include <string.h>
 #include <hal/keyboard.h>
+#include <stream/stream.h>
 #include "bitmap.h"
 
 //------------------------------------------------------------------------------------------
@@ -12,8 +13,8 @@
 //------------------------------------------------------------------------------------------
 // Normal keys
 const char keys_nomod[] = {
-	0, 0, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 0xE1, '\'', 0, 0,          // 0x00 - 0x0F
-	'q', 'w', 'e', 'r', 't', 'z', 'u', 'i', 'o', 'p', 0x81, '+', 0, 0, 'a', 's',       // 0x10 - 0x1F
+	0, 0, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 0xE1, '\'', 8, 0,          // 0x00 - 0x0F
+	'q', 'w', 'e', 'r', 't', 'z', 'u', 'i', 'o', 'p', 0x81, '+', '\n', 0, 'a', 's',    // 0x10 - 0x1F
 	'd', 'f', 'g', 'h', 'j', 'k', 'l', 0x94, 0x84, '^', 0, '#', 'y', 'x', 'c', 'v',    // 0x20 - 0x2F
 	'b', 'n', 'm', ',', '.', '-', 0, '*', 0, ' ', 0, 0, 0, 0, 0, 0,                    // 0x30 - 0x3F
 	0, 0, 0, 0, 0, 0, 0, '7', '8', '9', '-', '4', '5', '6', '+', '1',                  // 0x40 - 0x4F
@@ -58,7 +59,7 @@ bool _capslock = false;
 bool _numlock = false;
 bool _scrolllock = false;
 uint8_t _lasterror = 1; // 0 is KB_ERR_BUF_OVERRUN while 1 is not a defined error
-char* c;
+characterStream_t* c;
 
 struct kbError kbErrors[] = {
 	{0, "KB_ERR_BUF_OVERRUN"},
@@ -149,8 +150,7 @@ static int kbHandleKeycode(uint8_t keycode)
 			}
 			// Only write if it's a valid character
 			if (ch != 0) {
-				*c = ch;
-				c = NULL;
+				write(c, ch);
 			}
 		}
 	}
@@ -202,8 +202,14 @@ uint8_t kbGetLastError()
 	return _lasterror;
 }
 
-// Register to get the next key character written to c
-void getc(char* x)
+// Register to get input written to c
+void kbSetCharacterStream(characterStream_t* x)
 {
 	c = x;
+}
+
+// Unregister the characterStream
+void kbClearCharacterStream(void)
+{
+	c = NULL;
 }
