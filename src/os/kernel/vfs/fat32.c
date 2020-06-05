@@ -330,6 +330,7 @@ static cluster_chain_t *getChain(mountpoint_t *metadata, uint32_t first)
 			debug_set_color(0x0C, 0x00);
 			debug_printf("Couldn't read cluster value %u", current->index);
 			debug_set_color(0x0F, 0x00);
+			deleteClusterChain(chain);
 			return NULL;
 		}
 
@@ -1584,6 +1585,7 @@ mountpoint_t *mountFAT32(partition_t *partition)
 		debug_set_color(0x0C, 0x00);
 		debug_print("Couldn't read BPB");
 		debug_set_color(0x0F, 0x00);
+		kfree(bpb);
 		return NULL;
 	}
 
@@ -1594,6 +1596,8 @@ mountpoint_t *mountFAT32(partition_t *partition)
 		debug_set_color(0x0C, 0x00);
 		debug_print("Couldn't read FSInfo struct");
 		debug_set_color(0x0F, 0x00);
+		kfree(bpb);
+		kfree(fsinfo);
 		return NULL;
 	}
 

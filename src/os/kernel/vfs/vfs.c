@@ -227,11 +227,11 @@ static vfs_node_t *createFile(vfs_node_t *node, const char *path, uint32_t flags
 	file->parent = parent->file_desc;
 
 	strcpy(file->name, filename);
+	kfree(filename);
 
 	// Create the new file on its filesystem
 	if (parent->file_desc->mkfile(file))
 	{
-		kfree(filename);
 		kfree(file);
 		return NULL;
 	}
@@ -736,6 +736,7 @@ int vfsRemove(const char *path)
 			vfsClosedir(dir);
 			return EOF;
 		}
+		vfsClosedir(dir);
 	}
 
 	// Remove the file from the filesystem
