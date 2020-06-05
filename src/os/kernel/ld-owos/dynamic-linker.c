@@ -109,7 +109,7 @@ static int handle_needed_libs(char* name)
 		loaded_libs[loaded_lib_count++] = libinfo;
 
 		//Get DYNSYM and DYNSTR section out of the section header
-		size_t dynsym_file_offset, dynsym_file_size, dynstr_file_offset, dynstr_file_size;
+		size_t dynsym_file_offset = 0, dynsym_file_size = 0, dynstr_file_offset = 0, dynstr_file_size = 0;
 		ELF_section_header_info_t* header = get_elf_section_header_info(libinfo->file);
 		ELF_header_t* elf_header = get_elf_header(libinfo->file);
 		ELF_section_header_entry_t* section_string_table_entry = &header->base[elf_header->section_header_table_name_index];	//String table containing the section names
@@ -119,7 +119,7 @@ static int handle_needed_libs(char* name)
 		READ_FROM_DISK(libinfo, buffer, section_string_table_entry->offset, section_string_table_entry->size)
 
 		//Search through the section header
-		for(uint16_t i = 0; i < header->entry_count && (dynsym_file_offset != 0 || dynstr_file_offset != 0); i++)
+		for(uint16_t i = 0; i < header->entry_count && (dynsym_file_offset == 0 || dynstr_file_offset == 0); i++)
 		{
 			ELF_section_header_entry_t* current_header = &header->base[i];
 
