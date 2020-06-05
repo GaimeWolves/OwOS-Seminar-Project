@@ -1,24 +1,19 @@
-#ifndef _SHELL_H
-#define _SHELL_H
+#ifndef _SHELL_PARSER_H
+#define _SHELL_PARSER_H
 //------------------------------------------------------------------------------------------
 //				Includes
 //------------------------------------------------------------------------------------------
-#include <stdnoreturn.h>
-#include <stdbool.h>
+#include <stream/stream.h>
+
+#include <stddef.h>
 
 //------------------------------------------------------------------------------------------
 //				Constants
 //------------------------------------------------------------------------------------------
-#define SHELL_MAX_INPUT_BUFFER 100
 
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
-typedef struct shell_state
-{
-	bool is_quotation_mark;
-	bool is_escaped;
-} shell_state_t;
 
 //------------------------------------------------------------------------------------------
 //				Variables
@@ -27,8 +22,6 @@ typedef struct shell_state
 //------------------------------------------------------------------------------------------
 //				Public Function
 //------------------------------------------------------------------------------------------
-void shell_init(void);
-noreturn void shell_start(void);
+int input_parser(const char* buffer, size_t buffersz, char** executable_name, int* argc, char*** args, characterStream_t** in_stream, bool* del_in_stream, characterStream_t** out_stream, bool* del_out_stream, characterStream_t** err_stream, bool* del_err_stream);
 
-void shell_handle_output(char c);
 #endif

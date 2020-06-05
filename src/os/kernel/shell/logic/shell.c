@@ -1,6 +1,7 @@
 #include <shell/shell.h>
 
 #include "../graphics/frame.h"
+#include "input_parser/parser_main.h"
 
 #include <shell/in_stream.h>
 #include <shell/out_stream.h>
@@ -13,11 +14,6 @@
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
-typedef struct shell_state
-{
-	bool is_quotation_mark;
-	bool is_escaped;
-} shell_state_t;
 
 //------------------------------------------------------------------------------------------
 //				Local Vars
@@ -31,9 +27,37 @@ static size_t shell_line_index;
 //------------------------------------------------------------------------------------------
 //				Private Function
 //------------------------------------------------------------------------------------------
-static void shell_handle_input(char* input)
+static void shell_handle_input()
 {
-	//FIXME: HANDLE INPUT
+	//Argument count
+	int argc;
+	//Arguments
+	char** args;
+	//Input stream
+	characterStream_t* in_stream;
+	//Delete input stream
+	bool del_in_stream;
+	//Output stream
+	characterStream_t* out_stream;
+	//Delete output stream
+	bool del_out_stream;
+	//Error stream
+	characterStream_t* err_stream;
+	//Delete error stream
+	bool del_err_stream;
+	//Executable name
+	char* executable_name;
+
+	input_parser(buffer, buffer_index, &executable_name, &argc, &args, &in_stream, &del_in_stream, &out_stream, &del_out_stream, &err_stream, &del_err_stream);
+
+	//FIXME: Start program
+
+	if(del_in_stream)
+		delete(in_stream);
+	if(del_out_stream)
+		delete(out_stream);
+	if(del_err_stream)
+		delete(err_stream);
 }
 
 static void shell_handle_input_normal_char(char c)
@@ -41,7 +65,6 @@ static void shell_handle_input_normal_char(char c)
 	if(shell_state.is_escaped)
 	{
 		shell_state.is_escaped = false;
-		shell_handle_input_normal_char('\\');
 	}
 
 	if(buffer_index < SHELL_MAX_INPUT_BUFFER)
@@ -74,7 +97,7 @@ static bool shell_handle_input_char(char c)
 					shell_state.is_escaped = false;
 				if(buffer[buffer_index] == '"' && buffer_index > 0 && buffer[buffer_index - 1] != '\\')
 					shell_state.is_quotation_mark = !shell_state.is_quotation_mark;
-				if(buffer[buffer_index - 1] == '\\')
+				if(buffer_index > 0 && buffer[buffer_index - 1] == '\\')
 				{
 					buffer_index--;
 					shell_state.is_escaped = true;
@@ -164,7 +187,7 @@ noreturn void shell_start(void)
 		while(shell_handle_input_char(read(in_stream)));
 
 		//Process input
-		shell_handle_input(buffer);
+		shell_handle_input();
 	}
 }
 
