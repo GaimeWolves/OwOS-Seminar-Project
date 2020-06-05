@@ -93,7 +93,7 @@ static int handle_needed_libs(char* name)
 		//Test if already loaded
 		for(size_t i = 0; i < loaded_lib_count; i++)
 		{
-			if(strcmp(LIBINFO_NAME(loaded_libs[i]), LIBINFO_NAME(libinfo)) == 0)
+			if(strcmp(LIBINFO_NAME(loaded_libs[i]), "libkernel.so") == 0)
 			{
 				//Free memory
 				LIBINFO_FREE(libinfo)

@@ -86,8 +86,8 @@ typedef struct
 		vfsRead(libinfo->file->file, (void*)buffer_pointer, size);
 //Frees the space of a libinfo pointer
 #define LIBINFO_FREE(i) \
-		dispose_elf_file_struct(libinfo->file); \
-		kfree(libinfo);
+		dispose_elf_file_struct(i->file); \
+		kfree(i);
 
 //------------------------------------------------------------------------------------------
 //				Variables

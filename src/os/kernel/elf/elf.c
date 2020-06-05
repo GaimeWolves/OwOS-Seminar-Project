@@ -173,6 +173,9 @@ void dispose_elf_file_struct(ELF_FILE* file)
 		kfree(file->section_header_info_cache);
 		file->section_header_info_cache = NULL;
 	}
+
+	//Free ELF_FILE
+	kfree(file);
 }
 
 //Creates a ELF_FILE struct out of a FILE struct
