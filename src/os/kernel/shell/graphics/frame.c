@@ -118,13 +118,19 @@ void shell_frame_backspace(void)
 	refresh();
 }
 
-void shell_frame_goto_next_row(void)
+void shell_frame_goto_next_row(bool cursor)
 {
 	if(shell_frame_is_last_row())
 		shell_frame_scroll(1);
 	
 	state.row++;
 	state.column = 0;
+
+	if(cursor)
+	{
+		move(state.column, state.row);
+		refresh();
+	}
 }
 char* shell_frame_get_shell_line_string(void)
 {
@@ -141,7 +147,7 @@ void shell_frame_init(void)
 void shell_frame_print_shell_line(void)
 {
 	if(state.column)
-		shell_frame_goto_next_row();
+		shell_frame_goto_next_row(false);
 	shell_frame_print_string(shell_frame_get_shell_line_string(), true);
 }
 
@@ -150,7 +156,7 @@ void shell_frame_handle_input(char c)
 	switch (c)
 	{
 	case '\n':
-		shell_frame_goto_next_row();
+		shell_frame_goto_next_row(true);
 		break;
 	
 	default:
