@@ -122,7 +122,7 @@ static void tryLinkChunks(chunk_t *lower, chunk_t *higher)
 		if (lastAlloc)
 		{
 			// Get last allocation in the lower chunks table
-			if (lastAlloc->next)
+			while (lastAlloc->next)
 				lastAlloc = lastAlloc->next;
 
 			if (higher->table) higher->table->prev = lastAlloc;
@@ -134,6 +134,8 @@ static void tryLinkChunks(chunk_t *lower, chunk_t *higher)
 		// Merge chunks by adjusting removing references to higher chunk 
 		if (higher->next) higher->next->prev = lower;
 		lower->next = higher->next;
+		// Add pages of the higher chunk to the lower
+		lower->blocks += higher->blocks;
 
 		debug_printf("[HEAP] Linked chunks @ %p and %p", (void*)lower, (void*)higher);
 	}
@@ -164,13 +166,13 @@ static int tryResizeChunk(chunk_t *chunk, size_t size)
 			if (chunk->prev) chunk->prev->next = chunk->next;
 			if (chunk->next) chunk->next->prev = chunk->prev;
 
+			debug_printf("[HEAP] Extended chunk @ %p downwards to %u pages", (void*)actualAddress, chunk->blocks);
+
 			// Try to link together adjacent chunks
 			tryLinkChunks(chunk->prev, (chunk_t*)actualAddress);
 
 			if (chunk == heap) // Heap address got relocated
 				moveHeap((chunk_t*)actualAddress);
-
-			debug_printf("[HEAP] Extended chunk @ %p downwards to %u pages", (void*)actualAddress, chunk->blocks);
 
 			return 0;
 		}
@@ -196,10 +198,10 @@ static int tryResizeChunk(chunk_t *chunk, size_t size)
 			// Adjust chunk size
 			chunk->blocks += blocks;
 
+			debug_printf("[HEAP] Extended chunk @ %p upwards to %u pages", (void*)chunk, chunk->blocks);
+
 			// Try to link together adjacent chunks
 			tryLinkChunks(chunk, chunk->next);
-
-			debug_printf("[HEAP] Extended chunk @ %p upwards to %u pages", (void*)chunk, chunk->blocks);
 			
 			return 0;
 		}
@@ -312,7 +314,11 @@ static void optimizeChunk(chunk_t *chunk)
 			if (chunk == heap) // Heap got relocated
 				moveHeap((chunk_t*)newAddress);
 
+			//Copy information struct of the chunk to new location
 			memcpy((void*)newAddress, (void*)chunk, sizeof(chunk_t));
+			//Signal PMM to free the blocks
+			pmmFreeContinuous(chunk, skipBlocks);
+			//Set pointer to the new location
 			chunk = (chunk_t*)newAddress;
 
 			// Update addresses of neighbour chunks
