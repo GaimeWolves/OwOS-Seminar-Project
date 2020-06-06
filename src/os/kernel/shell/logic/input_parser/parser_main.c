@@ -54,7 +54,7 @@ static inline __attribute__((always_inline)) int entry_count()
 	return count;
 }
 
-static characterStream_t* create_file_stream(char* str, size_t size, char* mode)
+static characterStream_t* create_file_stream(const char* str, size_t size, char* mode)
 {
 	//Test if we have an absolute address
 	if(str[0] != '/')
@@ -78,18 +78,18 @@ static characterStream_t* create_file_stream(char* str, size_t size, char* mode)
 	strcpy(m, mode);
 
 	//Create the stream
-	return createFileStream(file_name, m);
+	return &createFileStream(file_name, m)->stream;
 }
 
 static int stream_parser(characterStream_t** in_stream, bool* del_in_stream, characterStream_t** out_stream, bool* del_out_stream, characterStream_t** err_stream, bool* del_err_stream)
 {
 	//Loop through the linked list
 	argument_list_t* current = first_arg;
-	for(size_t i = 0; i < entry_count(); i++)
+	for(int i = 0; i < entry_count(); i++)
 	{
 		//Check if this character means stream redirection
-		if(	   current->size == 1 && (memcmp(current->str, ">", 1) == 0 || memcmp(current->str, "<", 1) == 0)
-			|| current->size == 2 && (memcmp(current->str, "2>", 2) == 0))
+		if(	   (current->size == 1 && (memcmp(current->str, ">", 1) == 0 || memcmp(current->str, "<", 1) == 0))
+			|| (current->size == 2 && (memcmp(current->str, "2>", 2) == 0)))
 			{
 				//There should be an argument after that
 				if(!current->next)
@@ -187,7 +187,7 @@ int input_parser(const char* buffer, size_t buffersz, char** executable_name, in
 			
 			continue;
 		}
-		if(length == -1)
+		if(length == (size_t)-1)
 		{
 			current_entry = kzalloc(sizeof(argument_list_t));
 			length = 0;
@@ -253,7 +253,7 @@ int input_parser(const char* buffer, size_t buffersz, char** executable_name, in
 
 		//Loop through args
 		current_entry = first_arg;
-		for(size_t i = 0; i < *argc; i++)
+		for(int i = 0; i < *argc; i++)
 		{
 			//Get buffer for string
 			(*args)[i] = kmalloc(current_entry->size + 1);

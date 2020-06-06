@@ -15,6 +15,8 @@
 
 #include <attribute_defs.h>
 
+#include "dynamic-linker.h"
+
 //------------------------------------------------------------------------------------------
 //				Macro
 //------------------------------------------------------------------------------------------
@@ -140,7 +142,7 @@ int linker_main(characterStream_t* in_stream, characterStream_t* out_stream, cha
 	}
 
 	//Free memory
-	for(size_t i = loaded_lib_count - 1; i > 0; i--)
+	for(size_t i = loaded_lib_count - 1; i != (size_t)-1; i--)
 	{
 		
 		if(strcmp(LIBINFO_NAME(loaded_libs[i]), "libkernel.so") == 0)
@@ -254,7 +256,7 @@ int process_program_header(libinfo_t* libinfo)
 	if(needLinking)
 	{
 		int returnCode;
-		if(returnCode = process_dynamic_section(libinfo, needLinking))
+		if((returnCode = process_dynamic_section(libinfo, needLinking)))
 			return returnCode - 10;
 	}
 

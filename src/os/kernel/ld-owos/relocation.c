@@ -81,7 +81,7 @@ int process_relocation(libinfo_t* libinfo, dynamic_linker_reloc_info_t info)
 				continue;
 			}
 
-			load_time_address = RESOLVE_MEM_ADDRESS(libinfo, compile_time_address);
+			load_time_address = (uint32_t)RESOLVE_MEM_ADDRESS(libinfo, compile_time_address);
 		}
 	
 		//Handling depends on the type
@@ -98,7 +98,7 @@ int process_relocation(libinfo_t* libinfo, dynamic_linker_reloc_info_t info)
 				*address = load_time_address;
 				break;
 			case R_386_RELATIVE:
-				*address = libinfo->base_address + RELOCATION_ADDEND(info.type, entry, address);
+				*address = (uint32_t)libinfo->base_address + RELOCATION_ADDEND(info.type, entry, address);
 				break;
 			case R_386_GOTOFF:
 				*address = load_time_address + RELOCATION_ADDEND(info.type, entry, address) - (size_t)libinfo->plt_got_address;

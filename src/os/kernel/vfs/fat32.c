@@ -1385,8 +1385,8 @@ static size_t doFileOperation(file_desc_t *file, size_t offset, size_t size, cha
 	if (last >= getClusterCount(chain))
 		last = getClusterCount(chain) - 1;
 
-	int index = 0;
-	int start, end, amount;
+	size_t index = 0;
+	size_t start, end, amount;
 
 	char *tmpBuf = kmalloc(metadata->bytesPerCluster);
 	

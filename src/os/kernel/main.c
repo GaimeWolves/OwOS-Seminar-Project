@@ -9,6 +9,13 @@
 
 _Noreturn void main(uint32_t magic, multiboot_info_t *boot_info)
 {
+	if(magic != MULTIBOOT_BOOTLOADER_MAGIC)
+	{
+		//The bootloader is not multiboot compliant
+		//We can't work with this
+		for(;;);
+	}
+
 	initHAL();
 	initPMM(boot_info);
 	initKeyboard();

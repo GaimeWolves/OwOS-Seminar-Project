@@ -31,7 +31,7 @@ struct dynamic_linker_dynamic_symbol
 	char* name;
 	uint8_t type;
 	uint32_t* address;
-	uint32_t* addend;
+	uint32_t addend;
 };
 //Describes attributes of a relocation section
 typedef struct

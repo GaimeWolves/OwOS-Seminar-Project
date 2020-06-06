@@ -77,7 +77,7 @@ int mvaddstr(int x, int y, char* str)
 
 	size_t len = strlen(str);
 	int cursorX = (x + len) % MAX_COLS;
-	int cursorY = y + len / MAX_COLS + (cursorX < len ? 1 : 0);
+	int cursorY = y + len / MAX_COLS + ((size_t)cursorX < len ? 1 : 0);
 	move(cursorX, cursorY);
 
 	return 0;

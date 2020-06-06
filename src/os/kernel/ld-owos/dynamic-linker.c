@@ -38,7 +38,7 @@
 
 //Test if all mandatory fields are set
 //true if all are set otherwise false
-static __ALWAYS_INLINE__ bool check_vars(libinfo_t* libinfo)
+static bool check_vars(libinfo_t* libinfo)
 {
 	return
 		libinfo->string_table_base != NULL
@@ -149,7 +149,7 @@ static int handle_needed_libs(char* name)
 
 		//Load DYNSYM on heap and set libinfo fields accordingly
 		READ_FROM_DISK(libinfo, buffer, dynsym_file_offset, dynsym_file_size)
-		libinfo->symbol_table_base = buffer;
+		libinfo->symbol_table_base = (ELF_symbol_table_entry_t*)buffer;
 		libinfo->symbol_table_entry_size = sizeof(ELF_symbol_table_entry_t);
 		libinfo->page_count = dynsym_file_size;
 
@@ -240,7 +240,7 @@ int resolve_symbols(libinfo_t* libinfo)
 				//Test if the current symbol is the searched
 				if(strcmp(entry_name, name) == 0)
 				{
-					load_time_address = RESOLVE_MEM_ADDRESS(lib, entry->value);
+					load_time_address = (uint32_t)RESOLVE_MEM_ADDRESS(lib, entry->value);
 					break;
 				}
 			}
@@ -281,6 +281,8 @@ int resolve_symbols(libinfo_t* libinfo)
 		kfree(libinfo->last_dynamic_entry);
 		libinfo->last_dynamic_entry = next;
 	}
+
+	return 0;
 }
 
 //------------------------------------------------------------------------------------------
@@ -365,7 +367,7 @@ int process_dynamic_section(libinfo_t* libinfo, ELF_program_header_entry_t* entr
 				break;
 			case DST_PLTGOT:
 				//Set the according var
-				libinfo->plt_got_address = dyn_entry->value.ptr;
+				libinfo->plt_got_address = (void*)dyn_entry->value.ptr;
 				break;
 			case DST_PLTREL:
 				//Set the according var
@@ -407,7 +409,7 @@ int process_dynamic_section(libinfo_t* libinfo, ELF_program_header_entry_t* entr
 			//Get the name of the needed lib
 			char* name_address = &libinfo->string_table_base[current_entry->name_offset];
 			//Handle the lib
-			if(returnCode = handle_needed_libs(name_address))
+			if((returnCode = handle_needed_libs(name_address)))
 				return returnCode;
 
 			//Add to lib dependencies
