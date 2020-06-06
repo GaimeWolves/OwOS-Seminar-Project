@@ -20,6 +20,7 @@ typedef struct
 	characterStream_t stream;
 	FILE* file;
 	char* file_name;
+	char* mode;
 } fileStream_t;
 
 //------------------------------------------------------------------------------------------
@@ -29,6 +30,6 @@ typedef struct
 //------------------------------------------------------------------------------------------
 //				Public Function
 //------------------------------------------------------------------------------------------
-fileStream_t* createFileStream(char* file_name);
+fileStream_t* createFileStream(char* file_name, char* mode);
 
 #endif // _BUFFERED_STREAM_H

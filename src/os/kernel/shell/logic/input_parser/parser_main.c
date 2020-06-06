@@ -1,8 +1,14 @@
 #include "parser_main.h"
 
+#include <stream/fileStream.h>
 #include <shell/shell.h>
 #include <memory/heap.h>
 #include <string.h>
+
+#include <shell/in_stream.h>
+#include <shell/out_stream.h>
+//#include <shell/err_stream.h>
+
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
@@ -48,9 +54,31 @@ static inline __attribute__((always_inline)) int entry_count()
 	return count;
 }
 
-static characterStream_t* create_file_stream(char* str, size_t size)
+static characterStream_t* create_file_stream(char* str, size_t size, char* mode)
 {
+	//Test if we have an absolute address
+	if(str[0] != '/')
+		size++;
+	//Copy string on heap
+	char* file_name = kmalloc(size + 1);
+	char* current = file_name;
+	//It should start with a /
+	if(str[0] != '/')
+	{
+		*current = '/';
+		current++;
+		size--;
+	}
+	//Copy the string
+	current[size] = 0;
+	memcpy(current, str, size);
 
+	//Copy mode
+	char* m = kmalloc(strlen(mode) + 1);
+	strcpy(m, mode);
+
+	//Create the stream
+	return createFileStream(file_name, m);
 }
 
 static int stream_parser(characterStream_t** in_stream, bool* del_in_stream, characterStream_t** out_stream, bool* del_out_stream, characterStream_t** err_stream, bool* del_err_stream)
@@ -60,8 +88,8 @@ static int stream_parser(characterStream_t** in_stream, bool* del_in_stream, cha
 	for(size_t i = 0; i < entry_count(); i++)
 	{
 		//Check if this character means stream redirection
-		if(	   current->size == 1 && (memcmp(current->str, ">", 1) || memcmp(current->str, "<", 1))
-			|| current->size == 2 && (memcmp(current->str, "2>", 2)))
+		if(	   current->size == 1 && (memcmp(current->str, ">", 1) == 0 || memcmp(current->str, "<", 1) == 0)
+			|| current->size == 2 && (memcmp(current->str, "2>", 2) == 0))
 			{
 				//There should be an argument after that
 				if(!current->next)
@@ -75,25 +103,44 @@ static int stream_parser(characterStream_t** in_stream, bool* del_in_stream, cha
 						current->prev->next->prev = current->prev;
 				}
 				//Handle each stream operator
-				if(current->size == 1 && (memcmp(current->str, "<", 1)))
+				if(current->size == 1 && (memcmp(current->str, "<", 1) == 0))
 				{
-					*in_stream = create_file_stream(current->next->str, current->next->size);
+					*in_stream = create_file_stream(current->next->str, current->next->size, "r");
 					*del_in_stream = true;
 				}
-				else if(current->size == 1 && (memcmp(current->str, ">", 1)))
+				else if(current->size == 1 && (memcmp(current->str, ">", 1) == 0))
 				{
-					*out_stream = create_file_stream(current->next->str, current->next->size);
+					*out_stream = create_file_stream(current->next->str, current->next->size, "w+");
 					*del_out_stream = true;
 				}
-				else if(current->size == 2 && (memcmp(current->str, "2>", 2)))
+				else if(current->size == 2 && (memcmp(current->str, "2>", 2) == 0))
 				{
-					*err_stream = create_file_stream(current->next->str, current->next->size);
+					*err_stream = create_file_stream(current->next->str, current->next->size, "w+");
 					*del_err_stream = true;
 				}
 			}
 		//Otherwise just go to the next
 		current = current->next;
 	}
+
+	//If the streams are not specified then they should be the standard streams
+	if(*in_stream == NULL)
+	{
+		*in_stream = shell_in_stream_get();
+		*del_in_stream = false;
+	}
+	if(*out_stream == NULL)
+	{
+		*out_stream = shell_out_stream_get();
+		*del_out_stream = false;
+	}
+	if(*err_stream == NULL)
+	{
+		//There is no stderr stream at the moment
+		*del_err_stream = false;
+	}
+
+	return 0;
 }
 
 

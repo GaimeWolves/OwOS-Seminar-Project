@@ -28,9 +28,10 @@ static void openFileStream(characterStream_t* stream)
 	fileStream_t* s = (fileStream_t*)stream;
 	
 	//Open file
-	s->file = vfsOpen(s->file_name, "rw");
+	s->file = vfsOpen(s->file_name, s->mode);
 
-	stream->isOpened = true;
+	if(s->file)
+		stream->isOpened = true;
 }
 static void writeFileStream(characterStream_t* stream, char character)
 {
@@ -39,7 +40,7 @@ static void writeFileStream(characterStream_t* stream, char character)
 
 	fileStream_t* s = (fileStream_t*)stream;
 	
-	vfsWrite(s->file, &character, 1);
+	vfsPutc(character, s->file);
 }
 static char readFileStream(characterStream_t* stream)
 {
@@ -50,7 +51,7 @@ static char readFileStream(characterStream_t* stream)
 	
 	char character;
 
-	vfsRead(s->file, &character, 1);
+	character = (char)vfsGetc(s->file);
 
 	//Return character
 	return character;
@@ -72,6 +73,7 @@ static void deleteFileStream(characterStream_t* stream)
 	if(stream->isOpened)
 		close(stream);
 
+	kfree(s->mode);
 	kfree(s->file_name);
 	kfree(s);
 }
@@ -79,7 +81,7 @@ static void deleteFileStream(characterStream_t* stream)
 //------------------------------------------------------------------------------------------
 //				Public function
 //------------------------------------------------------------------------------------------
-fileStream_t* createFileStream(char* file_name)
+fileStream_t* createFileStream(char* file_name, char* mode)
 {
 	fileStream_t* s = (fileStream_t*)kmalloc(sizeof(fileStream_t));
 
@@ -91,6 +93,7 @@ fileStream_t* createFileStream(char* file_name)
 	s->stream.delete = &deleteFileStream;
 	s->file_name = file_name;
 	s->file = NULL;
+	s->mode = mode;
 	s->stream.isOpened = false;
 
 	return s;
