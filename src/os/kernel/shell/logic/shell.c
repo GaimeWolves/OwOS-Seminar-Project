@@ -5,6 +5,7 @@
 
 #include <shell/in_stream.h>
 #include <shell/out_stream.h>
+#include <ld-owos/ld-owos.h>
 #include <memory/heap.h>
 #include <hal/cpu.h>
 #include <vfs/vfs.h>
@@ -61,7 +62,7 @@ static void shell_handle_input()
 		FILE* exe = vfsOpen(executable_name, "r");
 
 		if(exe)
-			;//FIXME: Start program
+			linker_main(in_stream, out_stream, err_stream, exe, argc, args);
 	}
 
 	if(del_in_stream)
