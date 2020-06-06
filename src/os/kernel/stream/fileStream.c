@@ -52,10 +52,25 @@ static char readFileStream(characterStream_t* stream)
 	
 	char character;
 
-	character = (char)vfsGetc(s->file);
+	if(s->unread_char)
+	{
+		character = s->unread_char;
+		s->unread_char = 0;
+	}
+	else
+		character = (char)vfsGetc(s->file);
 
 	//Return character
 	return character;
+}
+static void unreadFileStream(characterStream_t* stream, char character)
+{
+	if(!stream->isOpened)
+		return;
+
+	fileStream_t* s = (fileStream_t*)stream;
+	
+	s->unread_char = character;
 }
 static void closeFileStream(characterStream_t* stream)
 {
@@ -90,11 +105,13 @@ fileStream_t* createFileStream(char* file_name, char* mode)
 	s->stream.open = &openFileStream;
 	s->stream.write = &writeFileStream;
 	s->stream.read = &readFileStream;
+	s->stream.unread = &unreadFileStream;
 	s->stream.close = &closeFileStream;
 	s->stream.delete = &deleteFileStream;
 	s->file_name = file_name;
 	s->file = NULL;
 	s->mode = mode;
+	s->unread_char = 0;
 	s->stream.isOpened = false;
 
 	return s;

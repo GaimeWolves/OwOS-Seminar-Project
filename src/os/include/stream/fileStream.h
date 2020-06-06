@@ -21,6 +21,7 @@ typedef struct
 	FILE* file;
 	char* file_name;
 	char* mode;
+	char unread_char;
 } fileStream_t;
 
 //------------------------------------------------------------------------------------------

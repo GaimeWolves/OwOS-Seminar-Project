@@ -50,6 +50,10 @@ char read(characterStream_t* stream)
 {
 	return stream->read(stream);
 }
+void unread(characterStream_t* stream, char character)
+{
+	stream->unread(stream, character);
+}
 void close(characterStream_t* stream)
 {
 	stream->close(stream);
