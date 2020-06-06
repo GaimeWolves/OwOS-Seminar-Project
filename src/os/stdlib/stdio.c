@@ -27,7 +27,7 @@ extern characterStream_t* err_stream_var;
 //				Constants
 //------------------------------------------------------------------------------------------
 
-#define SCANF_MAX_DIGITS 24 // Octal takes up at most 22 characters (plus prepended zero and null terminator)
+#define SCANF_MAX_DIGITS 25 // Octal takes up at most 22 characters (plus sign, prepended zero and null terminator)
 
 // Flags used in printf
 #define PRINTF_FLAG_LADJUST   0x01  // Left adjust
@@ -93,8 +93,8 @@ typedef struct scanf_conv_t
 
 	const char *format;
 	uintptr_t buffer; // May be char*, stdin*/stdout* or FILE*
-	size_t bufsz;
 	int assigned;
+	int read;
 	va_list ap;
 
 	scanf_getc_callback getc;
@@ -124,7 +124,7 @@ static void file_ungetc(scanf_conv_t *conv, const char ch);
 
 
 // "Global" helper methods used in scanf and printf
-static void parse_length(printf_conv_t *conversion);
+static void parse_length(const char **format, uint8_t *length);
 
 // Printf helper methods
 static void write_padding(printf_conv_t *conversion, bool ladjust, char fill);
@@ -191,6 +191,8 @@ static int str_getc(scanf_conv_t *conv)
 	char **buffer = (char**)&conv->buffer;
 	char got = *++(*buffer);
 
+	conv->read++;
+
 	if (got == '\0')
 		return EOF;
 	else
@@ -199,28 +201,33 @@ static int str_getc(scanf_conv_t *conv)
 
 static int stdio_getc(scanf_conv_t *conv)
 {
+	conv->read++;
 	return (int)stdin->read(stdin);
 }
 
 static int file_getc(scanf_conv_t *conv)
 {
+	conv->read++;
 	FILE *file = (FILE*)conv->buffer;
 	return fgetc(file);
 }
 
 static void str_ungetc(scanf_conv_t *conv, const char ch)
 {
+	conv->read--;
 	char **buffer = (char**)&conv->buffer;
 	*--(*buffer) = ch;
 }
 
 static void stdio_ungetc(scanf_conv_t *conv, const char ch)
 {
+	conv->read--;
 	// TODO: Implement ungetc for characterStream_t
 }
 
 static void file_ungetc(scanf_conv_t *conv, const char ch)
 {
+	conv->read--;
 	FILE *file = (FILE*)conv->buffer;
 	ungetc(ch, file);
 }
@@ -465,54 +472,230 @@ static char printf_parse_precision(printf_conv_t *conversion)
 }
 
 // Helper function to parse the length modifier
-static void parse_length(printf_conv_t *conversion)
+static void parse_length(const char **format, uint8_t *length)
 {
-	switch(conversion->format[0])
+	switch((*format)[0])
 	{
 		case 'h':
 		{
-			if (conversion->format[1] == 'h')
+			if ((*format)[1] == 'h')
 			{
-				conversion->length = CONVERSION_LENGTH_HH;
-				conversion->format++;
+				*length = CONVERSION_LENGTH_HH;
+				(*format)++;
 			}
 			else
-				conversion->length = CONVERSION_LENGTH_H;
+				*length = CONVERSION_LENGTH_H;
 			break;
 		}
 		case 'l':
 		{
-			if (conversion->format[1] == 'l')
+			if ((*format)[1] == 'l')
 			{
-				conversion->length = CONVERSION_LENGTH_LL;
-				conversion->format++;
+				*length = CONVERSION_LENGTH_LL;
+				(*format)++;
 			}
 			else
-				conversion->length = CONVERSION_LENGTH_L;
+				*length = CONVERSION_LENGTH_L;
 			break;
 		}
 		case 'j':
 		{
-			conversion->length = CONVERSION_LENGTH_J;
+			*length = CONVERSION_LENGTH_J;
 			break;
 		}
 		case 'z':
 		{
-			conversion->length = CONVERSION_LENGTH_Z;
+			*length = CONVERSION_LENGTH_Z;
 			break;
 		}
 		case 't':
 		{
-			conversion->length = CONVERSION_LENGTH_T;
+			*length = CONVERSION_LENGTH_T;
 			break;
 		}
 		default:
 		{
-			conversion->format--; // So we don't skip anything
+			(*format)--; // So we don't skip anything
 			break;
 		}
 	}
-	conversion->format++;
+	(*format)++;
+}
+
+static void generic_scanf(scanf_conv_t *conversion)
+{
+	if (!conversion->buffer || !conversion->format)
+	{
+		conversion->assigned = -1;
+		return;
+	}
+
+	const char **format = &conversion->format;
+
+	while(**format)
+	{
+		if (**format == '%')
+		{
+			conversion->specifier = 0;
+			conversion->maximum_width = -1;
+			conversion->length = 0;
+			conversion->suppress = false;
+
+			(*format)++; // Skip % char
+
+			if (**format == '*') // Suppress
+			{
+				(*format)++;
+				conversion->suppress = true;
+			}
+
+			if (isalnum(**format)) // Maximum field width
+			{
+				char *str_end = NULL;
+				int len = strtol(*format, &str_end, 10);
+				*format = str_end;
+
+				if (len < 1)
+					break;
+
+				conversion->maximum_width = len;
+			}
+			
+			parse_length(format, &conversion->length); // Argument length
+
+			int chr = 0; // Variable for currently read char
+
+			int base = 0;
+			bool sign = false;
+
+			conversion->specifier = *(*format)++;
+			switch(conversion->specifier)
+			{
+				case '%': // Match % literal
+				{
+					if (conversion->maximum_width || conversion->length || conversion->suppress)
+						break;
+
+					// Consume leading whitespace (same in some other conversions)
+					do {
+						chr = conversion->getc(conversion);
+					} while(isspace(chr));
+
+					if (chr != '%') // Also works for EOF exception
+						return;
+					
+					// Doesn't count towards assigned count so we decrement
+					// as it gets automatically incremented
+					conversion->assigned--;
+
+					break;
+				}
+				case 'c': // Match any character(s)
+				{
+					char *buffer = (char*)va_arg(conversion->ap, char*);
+					if (conversion->maximum_width == 0)
+						conversion->maximum_width = 1;
+
+					while(conversion->maximum_width--)
+					{
+						chr = conversion->getc(conversion);
+
+						if (chr == EOF)
+							return;
+
+						*buffer++ = (char)chr;
+					}
+
+					break;
+				}
+				case 's': // Match string (break on whitespace)
+				{
+					char *buffer = (char*)va_arg(conversion->ap, char*);
+
+					do {
+						chr = conversion->getc(conversion);
+					} while(isspace(chr));
+
+					do
+					{
+						if (chr == EOF)
+							return;
+						
+						*buffer++ = (char)chr;
+
+						if (conversion->maximum_width != -1)
+						{
+							if (--conversion->maximum_width == 0)
+								break;
+						}
+						
+						chr = conversion->getc(conversion);
+					} while (!isspace(chr));
+
+					conversion->ungetc(conversion, chr);
+					*buffer = '\0';
+
+					break;
+				}
+				case '[': // Match sequence of chars from the [set]
+				{
+
+					break;
+				}
+
+				// Combine every number specifier with the use of goto
+				case 'x':
+				case 'X':
+				{
+					base = 16;
+					goto scanf_number_conv;
+				}
+				case 'o':
+				{
+					base = 8;
+					goto scanf_number_conv;
+				}
+				case 'u':
+				{
+					base = 10;
+					goto scanf_number_conv;
+				}
+				case 'd':
+					base = 10;
+					sign = true;
+					goto scanf_number_conv;
+				case 'i':
+				{
+					sign = true;
+
+				scanf_number_conv: // Converts the number and assigns it
+					break;
+				}
+				case 'n': // Assign number of chars read
+					break;
+
+				case 'p': // Match pointer
+					break;
+			}
+
+			conversion->assigned++; // Increment assignment counter
+		}
+		else if (isspace(**format)) // Cosume all whitespace characters
+		{
+			while(isspace(**format))
+				(*format)++;
+		}
+		else // Match literal character
+		{
+			int ch = conversion->getc(conversion);
+
+			if (ch == EOF)
+				break;
+
+			if ((char)ch != **format)
+				break;
+		}
+	}
 }
 
 static void generic_printf(printf_conv_t *conversion)
@@ -549,10 +732,10 @@ static void generic_printf(printf_conv_t *conversion)
 			char fill = printf_parse_precision(conversion);
 
 			// Parse length modifier
-			parse_length(conversion);
+			parse_length(format, &conversion->length);
 
 			// Parse format specifier
-			conversion->specifier = **format;
+			conversion->specifier = *(*format)++;
 			switch (conversion->specifier)
 			{
 				case '%': // Print % symbol
