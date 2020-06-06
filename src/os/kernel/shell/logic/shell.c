@@ -7,6 +7,7 @@
 #include <shell/out_stream.h>
 #include <memory/heap.h>
 #include <hal/cpu.h>
+#include <vfs/vfs.h>
 
 #include <stdnoreturn.h>
 #include <stdbool.h>
@@ -48,9 +49,20 @@ static void shell_handle_input()
 	//Executable name
 	char* executable_name = NULL;
 
-	input_parser(buffer, buffer_index, &executable_name, &argc, &args, &in_stream, &del_in_stream, &out_stream, &del_out_stream, &err_stream, &del_err_stream);
+	if(input_parser(buffer, buffer_index, &executable_name, &argc, &args, &in_stream, &del_in_stream, &out_stream, &del_out_stream, &err_stream, &del_err_stream) == 0)
+	{
+		if(in_stream)
+			open(in_stream);
+		if(out_stream)
+			open(out_stream);
+		if(err_stream)
+			open(err_stream);
 
-	//FIXME: Start program
+		FILE* exe = vfsOpen(executable_name, "r");
+
+		if(exe)
+			;//FIXME: Start program
+	}
 
 	if(del_in_stream)
 		delete(in_stream);
@@ -58,6 +70,16 @@ static void shell_handle_input()
 		delete(out_stream);
 	if(del_err_stream)
 		delete(err_stream);
+
+	for(size_t i = 0; i < argc; i++)
+	{
+		kfree(args[i]);
+	}
+	if(args)
+		kfree(args);
+
+	if(executable_name)
+		kfree(executable_name);
 }
 
 static void shell_handle_input_normal_char(char c)

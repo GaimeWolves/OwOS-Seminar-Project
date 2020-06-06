@@ -118,6 +118,13 @@ static int stream_parser(characterStream_t** in_stream, bool* del_in_stream, cha
 					*err_stream = create_file_stream(current->next->str, current->next->size, "w+");
 					*del_err_stream = true;
 				}
+				//Free memory
+				argument_list_t* next = current->next->next;
+				i--;
+				kfree(current->next);
+				kfree(current);
+				current = next;
+				continue;
 			}
 		//Otherwise just go to the next
 		current = current->next;
