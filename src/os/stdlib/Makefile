@@ -12,10 +12,10 @@ all: make-folders ${STDLIB_BUILD_DIR}/libc.so
 	@echo ${STDLIB_BUILD_DIR}
 
 ${STDLIB_BUILD_DIR}/libc.so: ${C_OBJ}
-	${LD} -shared -o $@ $^ -L${LIBGCC_DIR} -lgcc
+	${LD} -shared ${LFLAGS} -o $@ $^ -L${STDLIB_BUILD_DIR} -lkernel -L${LIBGCC_DIR} -lgcc
 
 ${STDLIB_BUILD_DIR}/stdlib/%.o: %.c
-	${CC} ${CFLAGS} -fpic -o $@ $<
+	${CC} ${CFLAGS} ${KERNEL_STDLIB_INCLUDE} -fpic -o $@ $<
 
 make-folders:
 	mkdir -p ${STDLIB_BUILD_DIR}/stdlib/

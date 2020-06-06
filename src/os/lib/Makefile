@@ -14,7 +14,7 @@ ${LIB_BUILD_DIR}/lib.lib: ${C_OBJ}
 	${AR} $@ $^
 
 ${LIB_BUILD_DIR}/%.o: %.c
-	${CC} ${CFLAGS} -o $@ $<
+	${CC} ${CFLAGS} ${KERNEL_INCLUDE} -o $@ $<
 
 make-folders:
 	for dir in $(C_DIR); \

@@ -14,7 +14,7 @@ ${HAL_BUILD_DIR}/hal.lib: ${C_OBJ}
 	${AR} $@ $^
 
 ${HAL_BUILD_DIR}/%.o: %.c
-	${CC} ${CFLAGS} -mgeneral-regs-only -o $@ $<
+	${CC} ${CFLAGS} ${KERNEL_INCLUDE} -mgeneral-regs-only -o $@ $<
 
 make-folders:
 	for dir in $(C_DIR); \

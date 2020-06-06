@@ -7,8 +7,12 @@ MAKE := make
 export LD := i686-elf-ld
 export CC := i686-elf-gcc
 export AR := ar rcs
-export LFLAGS := -nostdlib -fno-pie -T ${SRC_DIR}/os/linker.ld
-export CFLAGS := -ffreestanding -c -O0 -g -Wall -Wextra -I$(SRC_DIR)/os/include -D _DEBUG
+export KERNEL_LINKER_SCRIPT := -T ${SRC_DIR}/os/linker.ld
+export KERNEL_LIB_LINKER_SCRIPT := -T ${SRC_DIR}/os/linker-so.ld
+export LFLAGS := -nostdlib
+export KERNEL_INCLUDE := -I$(SRC_DIR)/os/include
+export KERNEL_STDLIB_INCLUDE := -I$(SRC_DIR)/os/stdlib/include
+export CFLAGS := -ffreestanding -c -O0 -g -Wall -Wextra -D _DEBUG
 
 .DEFAULT_GOAL := all
 all: make-folders ${OS_BUILD_DIR}/kernel.elf submake_all_stdlib
@@ -24,15 +28,17 @@ ifneq ($(wildcard $(OS_BUILD_DIR)/kernel.elf),)
 endif
 	cp ${OS_BUILD_DIR}/kernel.elf ${PWD}/fs/kernel.elf
 	cp ${OS_BUILD_DIR}/libc.so ${PWD}/fs/libc.so
+	cp ${OS_BUILD_DIR}/libkernel.so ${PWD}/fs/libkernel.so
 
 ${OS_BUILD_DIR}/kernel.elf: ${OS_BUILD_DIR}/entry.o submake_all_kernel submake_all_hal submake_all_lib
-	${CC} ${LFLAGS} -o ${OS_BUILD_DIR}/kernel.elf $< -L${OS_BUILD_DIR} -l:kernel/kernel.lib -l:hal/hal.lib -l:lib/lib.lib -lgcc
+	${CC} ${LFLAGS} -fno-pie ${KERNEL_LINKER_SCRIPT} -o ${OS_BUILD_DIR}/kernel.elf $< -L${OS_BUILD_DIR} -l:kernel/kernel.lib -l:hal/hal.lib -l:lib/lib.lib -lgcc
+	${LD} -shared ${LFLAGS} ${KERNEL_LIB_LINKER_SCRIPT} -o ${OS_BUILD_DIR}/libkernel.so -L${OS_BUILD_DIR} -l:kernel.elf
 
 ${OS_BUILD_DIR}/%.o: %.c
-	-${CC} ${CFLAGS} -o $@ $<
+	-${CC} ${CFLAGS} ${KERNEL_INCLUDE} -o $@ $<
 
 ${OS_BUILD_DIR}/%.o: %.S
-	-${CC} ${CFLAGS} -o $@ $<
+	-${CC} ${CFLAGS} ${KERNEL_INCLUDE} -o $@ $<
 	
 make-folders:
 	mkdir -p ${OS_BUILD_DIR}
