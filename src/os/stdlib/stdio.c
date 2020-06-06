@@ -213,7 +213,7 @@ static void str_ungetc(scanf_conv_t *conv, const char ch)
 static void stdio_ungetc(scanf_conv_t *conv, const char ch)
 {
 	conv->read--;
-	// TODO: Implement ungetc for characterStream_t
+	stdin->unread(stdin, ch);
 }
 
 static void file_ungetc(scanf_conv_t *conv, const char ch)
@@ -1012,10 +1012,9 @@ FILE *fopen(const char *filename, const char *mode)
 	return vfsOpen(filename, mode);
 }
 
-FILE *freopen(const char *filename, const char *mode)
+FILE *freopen(const char *filename, const char *mode, FILE *stream)
 {
-	//TODO: Implement reopen in vfs
-	return NULL;
+	return vfsReopen(filename, mode, stream);
 }
 
 int fclose(FILE *stream)
@@ -1148,8 +1147,7 @@ int puts(const char *str)
 
 int ungetc(int ch, FILE *stream)
 {
-	// TODO: Implement ungetc in vfs
-	return 0;
+	return vfsUngetc(ch, stream);
 }
 
 int scanf(const char *format, ...);
@@ -1337,6 +1335,15 @@ FILE *tmpfile()
 {
 	static const char *tmpdir = "/tmp/";
 
+	DIR *dir = vfsOpendir("/tmp");
+	if (!dir) // Create tmp dir
+	{
+		if (vfsMkdir("/tmp"))
+			return NULL; // Couldn't create tmp dir
+	}
+	else
+		vfsClosedir(dir);
+
 	// Find filename
 	char *fname = kmalloc(FILENAME_MAX + 5);
 	if (!tmpnam(fname + 5))
@@ -1377,6 +1384,8 @@ char *tmpnam(char *filename)
 				break;
 			}
 		}
+
+		tmpdir->index = 0; // Start from beginning
 
 		if (!found)
 			return filename;

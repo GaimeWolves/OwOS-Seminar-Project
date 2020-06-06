@@ -36,7 +36,7 @@ extern characterStream_t *stderr;
 //------------------------------------------------------------------------------------------
 
 FILE *fopen(const char *filename, const char *mode);
-FILE *freopen(const char *filename, const char *mode);
+FILE *freopen(const char *filename, const char *mode, FILE *stream);
 int fclose(FILE *stream);
 int fflush(FILE *stream);
 void setbuf(FILE *stream, char *buffer);
