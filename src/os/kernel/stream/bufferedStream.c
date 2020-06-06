@@ -28,6 +28,9 @@ static inline size_t getNextIndex(bufferedStream_t* s)
 
 static void openBufferedStream(characterStream_t* stream)
 {
+	if(stream->isOpened)
+		return;
+
 	bufferedStream_t* s = (bufferedStream_t*)stream;
 	
 	//Init bufferedStream 

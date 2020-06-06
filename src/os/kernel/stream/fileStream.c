@@ -22,6 +22,9 @@
 //------------------------------------------------------------------------------------------
 static void openFileStream(characterStream_t* stream)
 {
+	if(stream->isOpened)
+		return;
+
 	fileStream_t* s = (fileStream_t*)stream;
 	
 	//Open file
