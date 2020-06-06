@@ -7,8 +7,9 @@
 #include <stdarg.h>
 #include <limits.h>
 
-#include <vfs/vfs.h> // Defines remaining types and macros like FILE struct, FILENAME_MAX, BUFSIZ, EOF and fpos_t
-#include <stream/stream.h>
+// Defines remaining types and macros like FILE struct, FILENAME_MAX, BUFSIZ, EOF and fpos_t
+#include "../../include/vfs/vfs.h"
+#include "../../include/stream/stream.h"
 
 //------------------------------------------------------------------------------------------
 //				Constants

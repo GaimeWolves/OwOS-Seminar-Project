@@ -7,21 +7,12 @@
 #include <stdint.h>
 #include <limits.h>
 
-#include "include/ctype.h"
-#include "include/stdlib.h"
-#include "include/string.h"
+#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include <vfs/vfs.h>
-#include <memory/heap.h>
-
-//------------------------------------------------------------------------------------------
-//				Streams
-//------------------------------------------------------------------------------------------
-#include "../include/stream/stream.h"
-
-extern characterStream_t* in_stream_var;
-extern characterStream_t* out_stream_var;
-extern characterStream_t* err_stream_var;
+#include "../include/vfs/vfs.h"
+#include "../include/memory/heap.h"
 
 //------------------------------------------------------------------------------------------
 //				Constants
