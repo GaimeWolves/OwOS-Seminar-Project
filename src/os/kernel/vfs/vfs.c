@@ -60,6 +60,8 @@ static vfs_node_t *createFile(vfs_node_t *node, const char *path, uint32_t flags
 static int cleanupTreeHelper(vfs_node_t *node);
 static void cleanupTree();
 
+static uint8_t parseModeString(const char *mode);
+
 //------------------------------------------------------------------------------------------
 //				Private function implementations
 //------------------------------------------------------------------------------------------
@@ -252,6 +254,40 @@ static vfs_node_t *createFile(vfs_node_t *node, const char *path, uint32_t flags
 	return newNode;
 }
 
+static uint8_t parseModeString(const char *mode)
+{
+	uint8_t flags = 0;
+
+	size_t len = strlen(mode);
+	switch(mode[0])
+	{
+		case 'r':
+			flags |= O_RDONLY;
+			break;
+		case 'w':
+			flags |= O_WRONLY | O_TRUNC;
+			break;
+		case 'a':
+			flags |= O_WRONLY | O_APPEND;
+			break;
+	}
+
+	if (len == 3) // Both flags present (eg. w+b, wb+, a+b, etc.)
+	{
+		flags |= O_BIN;
+		flags |= O_RDWR;
+	}
+	else if (len == 2) // Only one flag present (eg. wb or w+)
+	{
+		if (mode[1] == '+')
+			flags |= O_RDWR;
+		else
+			flags |= O_BIN;
+	}
+
+	return flags;
+}
+
 //------------------------------------------------------------------------------------------
 //				Public function implementations
 //------------------------------------------------------------------------------------------
@@ -357,33 +393,8 @@ FILE* vfsOpen(const char *path, const char *mode)
 	file->file_desc = node->file_desc;
 
 	// Parse mode
-	size_t len = strlen(mode);
-	switch(mode[0])
-	{
-		case 'r':
-			file->flags |= O_RDONLY;
-			break;
-		case 'w':
-			file->flags |= O_WRONLY | O_TRUNC;
-			break;
-		case 'a':
-			file->flags |= O_WRONLY | O_APPEND;
-			break;
-	}
+	file->flags = parseModeString(mode);
 
-	if (len == 3) // Both flags present (eg. w+b, wb+, a+b, etc.)
-	{
-		file->flags |= O_BIN;
-		file->flags |= O_RDWR;
-	}
-	else if (len == 2) // Only one flag present (eg. wb or w+)
-	{
-		if (mode[1] == '+')
-			file->flags |= O_RDWR;
-		else
-			file->flags |= O_BIN;
-	}
-	
 	// Cannot open a file in write mode more than once
 	if (node->file_desc->openWriteStreams > 0 && (file->flags & (O_RDWR | O_WRONLY)))
 	{
@@ -420,6 +431,79 @@ FILE* vfsOpen(const char *path, const char *mode)
 		vfsSeek(file, 0, SEEK_END);
 
 	return file;
+}
+
+// Associates the stream with the file at the path
+// If path is NULL tries to apply mode change to the stream
+FILE *vfsReopen(const char *path, const char *mode, FILE *stream)
+{
+	if (!stream || !mode)
+		return NULL;
+
+	// "Close" file associated with stream
+	vfsFlush(stream);
+
+	// Update read/write counts
+	if (stream->flags & O_RDWR)
+	{
+		stream->file_desc->openReadStreams--;
+		stream->file_desc->openWriteStreams--;
+	}
+	else if (stream->flags & O_RDONLY)
+		stream->file_desc->openReadStreams--;
+	else if (stream->flags & O_WRONLY)
+		stream->file_desc->openWriteStreams--;
+
+	if (path)
+	{
+		// Create temporary stream
+		FILE *tmp = vfsOpen(path, mode);
+
+		if (!tmp)
+			return NULL;
+
+		// Associate stream with new file
+		stream->mode = tmp->mode;
+		stream->flags = tmp->flags;
+		stream->pos = tmp->pos;
+		stream->file_desc = tmp->file_desc;
+		stream->rdPtr = stream->rdBuf;
+		stream->rdFil = stream->rdBuf;
+		stream->wrPtr = stream->wrBuf;
+		stream->pushback = 0;
+
+		// Free temporary stream
+		kfree(tmp->ioBuf);
+		kfree(tmp);
+	}
+	else
+	{
+		uint8_t newMode = parseModeString(mode);
+
+		// Will the stream be writeable now?
+		if (newMode & (O_RDWR | O_RDONLY) && !(stream->flags & (O_RDWR | O_RDONLY)))
+		{
+			if (stream->file_desc->openWriteStreams > 0)
+				return NULL;
+		}
+
+		// Update read/write counts
+		if (newMode & O_RDWR)
+		{
+			stream->file_desc->openReadStreams++;
+			stream->file_desc->openWriteStreams++;
+		}
+		else if (newMode & O_RDONLY)
+			stream->file_desc->openReadStreams++;
+		else if (newMode & O_WRONLY)
+			stream->file_desc->openWriteStreams++;
+
+		// Clear old flags and reapply new flags
+		stream->flags &= ~(O_WRONLY | O_RDONLY | O_RDWR | O_APPEND | O_TRUNC | O_BIN);
+		stream->flags |= newMode; // Change mode of stream
+	}
+
+	return stream;
 }
 
 // Closes the specified file stream
@@ -471,6 +555,10 @@ size_t vfsRead(FILE *file, void *buf, size_t size)
 		// Empty the buffer
 		for (; file->rdPtr < file->rdFil && read < size; file->rdPtr++, read++)
 			buffer[read] = *file->rdPtr;
+
+		// Revert changes to file position if pushback was used
+		file->pos += file->pushback;
+		file->pushback = 0;
 
 		// Did we reach the EOF or did we read enough bytes?
 		if (file->flags & O_EOF || read >= size)
@@ -571,9 +659,11 @@ int vfsSeek(FILE *file, long offset, int origin)
 // Flush the buffer contents to the drive
 int vfsFlush(FILE *file)
 {
-	// Reset read buffer
+	// Reset read buffer and pushback buffer
 	file->rdPtr = file->rdBuf;
 	file->rdFil = file->rdBuf;
+	file->pos += file->pushback; // Reset file position
+	file->pushback = 0;
 
 	// Was the file opened in write mode?
 	if (!(file->flags & O_WRONLY || file->flags & O_RDWR))
@@ -839,6 +929,37 @@ int vfsPuts(const char *str, FILE *stream)
 	}
 
 	return 0;
+}
+
+// Pushes a character back into the stream buffer
+// and modifies the pushback counter accordingly
+int vfsUngetc(int ch, FILE *stream)
+{
+	if (ch == EOF || stream->pos == 0)
+		return EOF;
+
+	size_t rdsiz = (size_t)(stream->rdEnd - stream->rdBuf);
+	
+	if (stream->pushback == rdsiz) // Pushback buffer is full
+		return EOF;
+
+	// Move buffer or buffer position
+	if (stream->rdPtr == stream->rdBuf)
+	{
+		memmove(stream->rdBuf + 1, stream->rdBuf, rdsiz - 1);
+
+		if (stream->rdFil != stream->rdEnd)
+			stream->rdFil++;
+	}
+	else
+		stream->rdPtr--;
+
+	*stream->rdPtr = (unsigned char)ch; // "unget" character
+	stream->pos--;           // Decrement stream position
+	stream->flags &= ~O_EOF; // Clear EOF
+	stream->pushback++;
+
+	return ch;
 }
 
 // Opens the directory associated with the path as a directory stream

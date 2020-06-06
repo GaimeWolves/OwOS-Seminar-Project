@@ -5,7 +5,7 @@
 //				Includes
 //------------------------------------------------------------------------------------------
 
-#include <vfs/mbr.h>
+#include "mbr.h"
 
 #include <stdint.h>
 #include <stddef.h>
@@ -104,8 +104,9 @@ typedef struct FILE
 	uint32_t flags;         // Flags
 	uint8_t mode;           // Buffering mode
 
-	fpos_t pos; // Position inside file
-	
+	fpos_t pos;      // Position inside file
+	size_t pushback; // Pushback count for ungetc (at max one complete read buffer)
+
 	char *rdBuf; // Read buffer base address
 	char *rdPtr; // Current position in read buffer
 	char *rdFil; // Current end of read buffer
@@ -161,6 +162,7 @@ typedef struct mountpoint_t
 int initVFS();
 
 FILE *vfsOpen(const char *path, const char *mode);
+FILE *vfsReopen(const char *path, const char *mode, FILE *stream);
 void vfsClose(FILE *file);
 size_t vfsRead(FILE *file, void *buf, size_t size);
 size_t vfsWrite(FILE *file, const void *buf, size_t size);
@@ -176,6 +178,7 @@ int vfsGetc(FILE *stream);
 char *vfsGets(char *str, int count, FILE *stream);
 int vfsPutc(int ch, FILE *stream);
 int vfsPuts(const char *str, FILE *stream);
+int vfsUngetc(int ch, FILE *stream);
 
 DIR *vfsOpendir(const char *path);
 int vfsClosedir(DIR *dir);
