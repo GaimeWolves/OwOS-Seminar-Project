@@ -30,23 +30,23 @@ static size_t shell_line_index;
 static void shell_handle_input()
 {
 	//Argument count
-	int argc;
+	int argc = 0;
 	//Arguments
-	char** args;
+	char** args = NULL;
 	//Input stream
-	characterStream_t* in_stream;
+	characterStream_t* in_stream = NULL;
 	//Delete input stream
-	bool del_in_stream;
+	bool del_in_stream = false;
 	//Output stream
-	characterStream_t* out_stream;
+	characterStream_t* out_stream = NULL;
 	//Delete output stream
-	bool del_out_stream;
+	bool del_out_stream = false;
 	//Error stream
-	characterStream_t* err_stream;
+	characterStream_t* err_stream = NULL;
 	//Delete error stream
-	bool del_err_stream;
+	bool del_err_stream = false;
 	//Executable name
-	char* executable_name;
+	char* executable_name = NULL;
 
 	input_parser(buffer, buffer_index, &executable_name, &argc, &args, &in_stream, &del_in_stream, &out_stream, &del_out_stream, &err_stream, &del_err_stream);
 
