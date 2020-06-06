@@ -48,6 +48,54 @@ static inline __attribute__((always_inline)) int entry_count()
 	return count;
 }
 
+static characterStream_t* create_file_stream(char* str, size_t size)
+{
+
+}
+
+static int stream_parser(characterStream_t** in_stream, bool* del_in_stream, characterStream_t** out_stream, bool* del_out_stream, characterStream_t** err_stream, bool* del_err_stream)
+{
+	//Loop through the linked list
+	argument_list_t* current = first_arg;
+	for(size_t i = 0; i < entry_count(); i++)
+	{
+		//Check if this character means stream redirection
+		if(	   current->size == 1 && (memcmp(current->str, ">", 1) || memcmp(current->str, "<", 1))
+			|| current->size == 2 && (memcmp(current->str, "2>", 2)))
+			{
+				//There should be an argument after that
+				if(!current->next)
+					return -1;
+				//Detache it from the argument chain
+				if(current->prev)
+				{
+					//This and the next should be detached
+					current->prev->next = current->next->next ? current->next->next : NULL;
+					if(current->prev->next)
+						current->prev->next->prev = current->prev;
+				}
+				//Handle each stream operator
+				if(current->size == 1 && (memcmp(current->str, "<", 1)))
+				{
+					*in_stream = create_file_stream(current->next->str, current->next->size);
+					*del_in_stream = true;
+				}
+				else if(current->size == 1 && (memcmp(current->str, ">", 1)))
+				{
+					*out_stream = create_file_stream(current->next->str, current->next->size);
+					*del_out_stream = true;
+				}
+				else if(current->size == 2 && (memcmp(current->str, "2>", 2)))
+				{
+					*err_stream = create_file_stream(current->next->str, current->next->size);
+					*del_err_stream = true;
+				}
+			}
+		//Otherwise just go to the next
+		current = current->next;
+	}
+}
+
 
 //------------------------------------------------------------------------------------------
 //				Public Function
@@ -135,6 +183,10 @@ int input_parser(const char* buffer, size_t buffersz, char** executable_name, in
 	current_entry = first_arg;
 	first_arg = first_arg->next;
 	kfree(current_entry);
+
+	//Handle stream args
+	if(stream_parser(in_stream, del_in_stream, out_stream, del_out_stream, err_stream, del_err_stream) != 0)
+		return -1;
 
 	//Argument count
 	*argc = entry_count();
