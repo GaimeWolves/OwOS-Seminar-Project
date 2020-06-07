@@ -34,17 +34,17 @@ extern uint8_t __ctype_lookup[];
 //				Public Function
 //------------------------------------------------------------------------------------------
 
-#define isalnum(c)	(__ctype_lookup[(uint8_t)c] & (CT_UPPER | CT_LOWER | CT_DIGIT))
-#define isalpha(c)	(__ctype_lookup[(uint8_t)c] & (CT_UPPER | CT_LOWER))
-#define iscntrl(c)	(__ctype_lookup[(uint8_t)c] & (CT_CNTRL))
-#define isgraph(c)	(__ctype_lookup[(uint8_t)c] & (CT_PUNCT | CT_UPPER | CT_LOWER | CT_DIGIT))
-#define islower(c)	(__ctype_lookup[(uint8_t)c] & (CT_LOWER))
-#define isupper(c)	(__ctype_lookup[(uint8_t)c] & (CT_UPPER))
-#define isprint(c)	(__ctype_lookup[(uint8_t)c] & (CT_PUNCT | CT_UPPER | CT_LOWER | CT_DIGIT | CT_SPACE))
-#define ispunct(c)	(__ctype_lookup[(uint8_t)c] & (CT_PUNCT))
-#define isspace(c)	(__ctype_lookup[(uint8_t)c] & (CT_WHITE))
-#define isdigit(c)	(__ctype_lookup[(uint8_t)c] & (CT_DIGIT))
-#define isxdigit(c)	(__ctype_lookup[(uint8_t)c] & (CT_DIGIT | CT_HEXDG))
+#define isalnum(c)	(__ctype_lookup[(uint8_t)(c)] & (CT_UPPER | CT_LOWER | CT_DIGIT))
+#define isalpha(c)	(__ctype_lookup[(uint8_t)(c)] & (CT_UPPER | CT_LOWER))
+#define iscntrl(c)	(__ctype_lookup[(uint8_t)(c)] & (CT_CNTRL))
+#define isgraph(c)	(__ctype_lookup[(uint8_t)(c)] & (CT_PUNCT | CT_UPPER | CT_LOWER | CT_DIGIT))
+#define islower(c)	(__ctype_lookup[(uint8_t)(c)] & (CT_LOWER))
+#define isupper(c)	(__ctype_lookup[(uint8_t)(c)] & (CT_UPPER))
+#define isprint(c)	(__ctype_lookup[(uint8_t)(c)] & (CT_PUNCT | CT_UPPER | CT_LOWER | CT_DIGIT | CT_SPACE))
+#define ispunct(c)	(__ctype_lookup[(uint8_t)(c)] & (CT_PUNCT))
+#define isspace(c)	(__ctype_lookup[(uint8_t)(c)] & (CT_WHITE))
+#define isdigit(c)	(__ctype_lookup[(uint8_t)(c)] & (CT_DIGIT))
+#define isxdigit(c)	(__ctype_lookup[(uint8_t)(c)] & (CT_DIGIT | CT_HEXDG))
 
 #define isascii(c)	((unsigned)(c) <= 0x7F)
 #define toascii(c)	((unsigned)(c) & 0x7F)

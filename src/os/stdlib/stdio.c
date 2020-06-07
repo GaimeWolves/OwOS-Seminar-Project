@@ -19,6 +19,8 @@
 //------------------------------------------------------------------------------------------
 
 #define SCANF_MAX_DIGITS 25 // Octal takes up at most 22 characters (plus sign, prepended zero and null terminator)
+#define isodigit(c) (isdigit(c) && c < '8') // Octal equivalent of (isdigit and isxdigit)
+#define ARG(type) (type)va_arg(conversion->ap, type) // Shorthand for va_arg
 
 // Flags used in printf
 #define PRINTF_FLAG_LADJUST   0x01  // Left adjust
@@ -92,6 +94,13 @@ typedef struct scanf_conv_t
 	scanf_ungetc_callback ungetc;
 } scanf_conv_t;
 
+// Union so that one method can assign unsigned and signed numbers
+typedef union scanf_number_t
+{
+	unsigned long long unsigned_num;
+	long long signed_num;
+} scanf_number_t;
+
 //------------------------------------------------------------------------------------------
 //				Private function declarations
 //------------------------------------------------------------------------------------------
@@ -117,6 +126,9 @@ static void file_ungetc(scanf_conv_t *conv, const char ch);
 // "Global" helper methods used in scanf and printf
 static void parse_length(const char **format, uint8_t *length);
 
+// Scanf helper methods
+static void scanf_assign_number(scanf_conv_t *conversion, scanf_number_t num, bool sign);
+
 // Printf helper methods
 static void write_padding(printf_conv_t *conversion, bool ladjust, char fill);
 static void write_string(printf_conv_t *conversion, const char *s, size_t size);
@@ -129,8 +141,9 @@ static void printf_parse_flags(printf_conv_t *conversion);
 static void printf_parse_width(printf_conv_t *conversion);
 static char printf_parse_precision(printf_conv_t *conversion);
 
-// Conversion struct prepared by specific function and passed to generic printf
+// Conversion struct prepared by specific function and passed to generic printf/scanf
 static void generic_printf(printf_conv_t *conversion);
+static void generic_scanf(scanf_conv_t * conversion);
 
 //------------------------------------------------------------------------------------------
 //				Private function implementations
@@ -513,6 +526,81 @@ static void parse_length(const char **format, uint8_t *length)
 	(*format)++;
 }
 
+// Assing the number to the argument depending on the length specifier
+static void scanf_assign_number(scanf_conv_t *conversion, scanf_number_t num, bool sign)
+{
+	if (conversion->specifier == 'p') // Pointers assign a void**
+	{
+		*ARG(void**) = (void*)(long)num.unsigned_num;
+		return;
+	}
+
+	switch(conversion->length)
+	{
+		case CONVERSION_LENGTH_HH:
+		{
+			if (sign)
+				*ARG(char*) = num.signed_num;
+			else
+				*ARG(unsigned char*) = num.unsigned_num;
+			break;
+		}
+		case CONVERSION_LENGTH_H:
+		{
+			if (sign)
+				*ARG(short*) = num.signed_num;
+			else
+				*ARG(unsigned short*) = num.unsigned_num;
+			break;
+		}
+		case CONVERSION_LENGTH_NONE:
+		{
+			if (sign)
+				*ARG(int*) = num.signed_num;
+			else
+				*ARG(unsigned int*) = num.unsigned_num;
+			break;
+		}
+		case CONVERSION_LENGTH_L:
+		{
+			if (sign)
+				*ARG(long*) = num.signed_num;
+			else
+				*ARG(unsigned long*) = num.unsigned_num;
+			break;
+		}
+		case CONVERSION_LENGTH_LL:
+		{
+			if (sign)
+				*ARG(long long*) = num.signed_num;
+			else
+				*ARG(unsigned long long*) = num.unsigned_num;
+			break;
+		}
+		case CONVERSION_LENGTH_J:
+		{
+			if (sign)
+				*ARG(intmax_t*) = num.signed_num;
+			else
+				*ARG(uintmax_t*) = num.unsigned_num;
+			break;
+		}
+		case CONVERSION_LENGTH_Z:
+		{
+			*ARG(size_t*) = sign ? (unsigned long long)num.signed_num : num.unsigned_num;
+			break;
+		}
+		case CONVERSION_LENGTH_T:
+		{
+			*ARG(ptrdiff_t*) = sign ? (unsigned long long)num.signed_num : num.unsigned_num;
+			break;
+		}
+		default:
+			break;
+	}
+
+}
+
 static void generic_scanf(scanf_conv_t *conversion)
 {
 	if (!conversion->buffer || !conversion->format)
@@ -521,30 +609,34 @@ static void generic_scanf(scanf_conv_t *conversion)
 		return;
 	}
 
-	const char **format = &conversion->format;
+	const char *format = conversion->format;
+	int chr = 0; // Variable for currently read char
 
-	while(**format)
+	while(*format)
 	{
-		if (**format == '%')
+		if (chr == EOF) // Format continues but stream ended
+			return;
+
+		if (*format == '%')
 		{
 			conversion->specifier = 0;
 			conversion->maximum_width = -1;
 			conversion->length = 0;
 			conversion->suppress = false;
 
-			(*format)++; // Skip % char
+			format++; // Skip % char
 
-			if (**format == '*') // Suppress
+			if (*format == '*') // Suppress
 			{
-				(*format)++;
+				format++;
 				conversion->suppress = true;
 			}
 
-			if (isalnum(**format)) // Maximum field width
+			if (isalnum(*format)) // Maximum field width
 			{
 				char *str_end = NULL;
-				int len = strtol(*format, &str_end, 10);
-				*format = str_end;
+				int len = strtol(format, &str_end, 10);
+				format = str_end;
 
 				if (len < 1)
 					break;
@@ -552,14 +644,12 @@ static void generic_scanf(scanf_conv_t *conversion)
 				conversion->maximum_width = len;
 			}
 			
-			parse_length(format, &conversion->length); // Argument length
-
-			int chr = 0; // Variable for currently read char
+			parse_length(&format, &conversion->length); // Argument length
 
 			int base = 0;
 			bool sign = false;
 
-			conversion->specifier = *(*format)++;
+			conversion->specifier = *format++;
 			switch(conversion->specifier)
 			{
 				case '%': // Match % literal
@@ -568,9 +658,7 @@ static void generic_scanf(scanf_conv_t *conversion)
 						break;
 
 					// Consume leading whitespace (same in some other conversions)
-					do {
-						chr = conversion->getc(conversion);
-					} while(isspace(chr));
+					while(isspace(chr = conversion->getc(conversion)));
 
 					if (chr != '%') // Also works for EOF exception
 						return;
@@ -583,7 +671,7 @@ static void generic_scanf(scanf_conv_t *conversion)
 				}
 				case 'c': // Match any character(s)
 				{
-					char *buffer = (char*)va_arg(conversion->ap, char*);
+					char *buffer = ARG(char*);
 					if (conversion->maximum_width == 0)
 						conversion->maximum_width = 1;
 
@@ -601,26 +689,23 @@ static void generic_scanf(scanf_conv_t *conversion)
 				}
 				case 's': // Match string (break on whitespace)
 				{
-					char *buffer = (char*)va_arg(conversion->ap, char*);
+					char *buffer = ARG(char*);
 
-					do {
-						chr = conversion->getc(conversion);
-					} while(isspace(chr));
+					while(isspace(chr = conversion->getc(conversion)));
 
 					do
 					{
 						if (chr == EOF)
 							return;
-						
+
 						*buffer++ = (char)chr;
+						chr = conversion->getc(conversion);
 
 						if (conversion->maximum_width != -1)
 						{
 							if (--conversion->maximum_width == 0)
 								break;
 						}
-						
-						chr = conversion->getc(conversion);
 					} while (!isspace(chr));
 
 					conversion->ungetc(conversion, chr);
@@ -630,11 +715,76 @@ static void generic_scanf(scanf_conv_t *conversion)
 				}
 				case '[': // Match sequence of chars from the [set]
 				{
+					char *buffer = ARG(char*);
+					bool negate = false;
+					bool allowed[256] = { 0 }; // Allowed ASCII chars
+
+					// Handle negation
+					if (*format == '^')
+					{
+						negate = true;
+						format++;
+					}
+
+					// Handle [-]abc] and []-abc] examples
+					if (*format == ']' || *format == '-')
+					{
+						allowed[(uint8_t)*format] = true;
+						format++;
+					}
+					
+					if (*format == ']' || *format == '-')
+					{
+						allowed[(uint8_t)*format] = true;
+						format++;
+					}
+
+					// Parse set into map
+					uint8_t fc = *format;
+					while((fc = *format++) != '\0' && fc != ']')
+					{
+						// Valid range
+						if (fc == '-' && *format != '\0' && *format != ']' && (uint8_t)format[-2] <= (uint8_t)*format)
+						{
+							for (fc = (uint8_t)format[-2]; fc < (uint8_t)*format; ++fc)
+								allowed[fc] = true;
+						}
+						else
+							allowed[fc] = true;
+					}
+
+					if (fc == '\0') // Invalid set format
+						return;
+
+					chr = conversion->getc(conversion);
+					if (chr == EOF)
+						return;
+
+					while((allowed[chr] && !negate) || (!allowed[chr] && negate))
+					{
+						*buffer++ = (char)chr;
+						chr = conversion->getc(conversion);
+
+						if (conversion->maximum_width != -1)
+						{
+							if (--conversion->maximum_width == 0)
+								break;
+						}
+					}
+
+					conversion->ungetc(conversion, chr);
+					*buffer = '\0';
 
 					break;
 				}
 
 				// Combine every number specifier with the use of goto
+				case 'p':
+				{
+					conversion->length = CONVERSION_LENGTH_L; // Force 32-bit
+					base = 16; // Pointers are in hex
+					goto scanf_number_conv;
+				}
 				case 'x':
 				case 'X':
 				{
@@ -652,39 +802,120 @@ static void generic_scanf(scanf_conv_t *conversion)
 					goto scanf_number_conv;
 				}
 				case 'd':
+				{
 					base = 10;
 					sign = true;
 					goto scanf_number_conv;
+				}
 				case 'i':
 				{
 					sign = true;
 
-				scanf_number_conv: // Converts the number and assigns it
+				scanf_number_conv: ; // Converts the number and assigns it
+					char number[SCANF_MAX_DIGITS] = { 0 };
+					int index = 0;
+
+					while(isspace(chr = conversion->getc(conversion)));
+
+					// Check sign
+					if (chr == '+' || chr == '-')
+					{
+						if (!sign && chr == '-') // Invalid number format
+							return;
+
+						if (conversion->maximum_width != -1)
+							conversion->maximum_width--;
+
+						number[index++] = (char)chr;
+						chr = conversion->getc(conversion);
+					}
+
+					// Identify base
+					if (chr == '0' && conversion->maximum_width != 0)
+					{
+						if (conversion->maximum_width != -1)
+							conversion->maximum_width--;
+
+						number[index++] = (char)chr;
+						chr = conversion->getc(conversion);
+
+						if (tolower(chr) == 'x' && conversion->maximum_width != 0)
+						{
+							if (base == 16 || base == 0)
+							{
+								chr = conversion->getc(conversion);
+								base = 16;
+							}
+						}
+						else if (base == 0)
+							base = 8;
+					}
+
+					// Get rest of the number into the buffer
+					while(isxdigit(chr) && index < SCANF_MAX_DIGITS)
+					{
+						if (chr == EOF)
+							return;
+
+						if (base == 8 && !isodigit(chr))
+							break;
+						else if (base == 10 && !isdigit(chr))
+							break;
+
+						number[index++] = (char)chr;
+						chr = conversion->getc(conversion);
+
+						if (conversion->maximum_width != -1)
+						{
+							if (--conversion->maximum_width == 0)
+								break;
+						}
+					}
+
+					conversion->ungetc(conversion, chr);
+
+					scanf_number_t num;
+					if (sign)
+						num.signed_num = strtoll(number, NULL, base);
+					else
+						num.unsigned_num = strtoull(number, NULL, base);
+
+					if (!conversion->suppress)
+						scanf_assign_number(conversion, num, sign);
+
 					break;
 				}
 				case 'n': // Assign number of chars read
-					break;
+				{
+					scanf_number_t num;
+					num.signed_num = conversion->read;
 
-				case 'p': // Match pointer
+					if (!conversion->suppress)
+						scanf_assign_number(conversion, num, true);
+
+					// C Standard says it doesn't count towards the
+					// assignment count even though it clearly
+					// assignes a number
+					conversion->assigned--;
 					break;
+				}
 			}
 
 			conversion->assigned++; // Increment assignment counter
 		}
-		else if (isspace(**format)) // Cosume all whitespace characters
+		else if (isspace(*format)) // Cosume all whitespace characters
 		{
-			while(isspace(**format))
-				(*format)++;
+			while(isspace(chr = conversion->getc(conversion)));
 		}
 		else // Match literal character
 		{
 			int ch = conversion->getc(conversion);
 
 			if (ch == EOF)
-				break;
+				return;
 
-			if ((char)ch != **format)
-				break;
+			if ((char)ch != *format)
+				return;
 		}
 	}
 }
@@ -1150,13 +1381,88 @@ int ungetc(int ch, FILE *stream)
 	return vfsUngetc(ch, stream);
 }
 
-int scanf(const char *format, ...);
-int fscanf(FILE *stream, const char *format, ...);
-int sscanf(const char *buffer, const char *format, ...);
+int scanf(const char *format, ...)
+{
+	va_list ap;
+	va_start(ap, format);
 
-int vscanf(const char *format, va_list ap);
-int vfscanf(FILE *stream, const char *format, va_list ap);
-int vsscanf(const char *buffer, const char *format, va_list ap);
+	int assigned = vscanf(format, ap);
+
+	va_end(ap);
+
+	return assigned;
+}
+
+int fscanf(FILE *stream, const char *format, ...)
+{
+	va_list ap;
+	va_start(ap, format);
+
+	int assigned = vfscanf(stream, format, ap);
+
+	va_end(ap);
+
+	return assigned;
+}
+
+int sscanf(const char *buffer, const char *format, ...)
+{
+	va_list ap;
+	va_start(ap, format);
+
+	// To prevent code duplication the maximum return value
+	// for the architecture is used
+	int assigned = vsscanf(buffer, format, ap);
+
+	va_end(ap);
+
+	return assigned;
+}
+
+int vscanf(const char *format, va_list ap)
+{
+	scanf_conv_t conversion = { 0 };
+
+	conversion.ap = ap;
+	conversion.buffer = (uintptr_t)stdin;
+	conversion.getc = (scanf_getc_callback)stdio_getc;
+	conversion.ungetc = (scanf_ungetc_callback)stdio_ungetc;
+	conversion.format = format;
+
+	generic_scanf(&conversion);
+
+	return conversion.assigned;
+}
+
+int vfscanf(FILE *stream, const char *format, va_list ap)
+{
+	scanf_conv_t conversion = { 0 };
+
+	conversion.ap = ap;
+	conversion.buffer = (uintptr_t)stream;
+	conversion.getc = (scanf_getc_callback)file_getc;
+	conversion.ungetc = (scanf_ungetc_callback)file_ungetc;
+	conversion.format = format;
+
+	generic_scanf(&conversion);
+
+	return conversion.assigned;
+}
+
+int vsscanf(const char *buffer, const char *format, va_list ap)
+{
+	scanf_conv_t conversion = { 0 };
+
+	conversion.ap = ap;
+	conversion.buffer = (uintptr_t)buffer;
+	conversion.getc = (scanf_getc_callback)str_getc;
+	conversion.ungetc = (scanf_ungetc_callback)str_ungetc;
+	conversion.format = format;
+
+	generic_scanf(&conversion);
+
+	return conversion.assigned;
+}
 
 int printf(const char *format, ...)
 {
