@@ -331,43 +331,43 @@ static void printf_parse_varg(printf_conv_t *conversion, char* buffer)
 		case CONVERSION_LENGTH_HH:
 		{
 			// First convert to int because of integer promotion in var args
-			var = (char)va_arg(conversion->ap, int);
+			var = (char)ARG(int);
 			break;
 		}
 		case CONVERSION_LENGTH_H:
 		{
 			// First convert to int because of integer promotion in var args
-			var = (short)va_arg(conversion->ap, int);
+			var = (short)ARG(int);
 			break;
 		}
 		case CONVERSION_LENGTH_NONE:
 		{
-			var = va_arg(conversion->ap, int);
+			var = ARG(int);
 			break;
 		}
 		case CONVERSION_LENGTH_L:
 		{
-			var = va_arg(conversion->ap, long);
+			var = ARG(long);
 			break;
 		}
 		case CONVERSION_LENGTH_LL:
 		{
-			var = va_arg(conversion->ap, unsigned long long);
+			var = ARG(unsigned long long);
 			break;
 		}
 		case CONVERSION_LENGTH_J:
 		{
-			var = va_arg(conversion->ap, uint64_t);
+			var = ARG(uintmax_t);
 			break;
 		}
 		case CONVERSION_LENGTH_Z:
 		{
-			var = va_arg(conversion->ap, size_t);
+			var = ARG(size_t);
 			break;
 		}
 		case CONVERSION_LENGTH_T:
 		{
-			var = va_arg(conversion->ap, ptrdiff_t);
+			var = ARG(ptrdiff_t);
 			break;
 		}
 		default:
@@ -426,7 +426,7 @@ static void printf_parse_width(printf_conv_t *conversion)
 {
 	if (conversion->format[0] == '*')
 	{
-		conversion->minimal_width = va_arg(conversion->ap, int);
+		conversion->minimal_width = ARG(int);
 		conversion->format++;
 	}
 	else if (isdigit(conversion->format[0]))
@@ -456,7 +456,7 @@ static char printf_parse_precision(printf_conv_t *conversion)
 		
 		if (conversion->format[0] == '*')
 		{
-			conversion->precision = va_arg(conversion->ap, int);
+			conversion->precision = ARG(int);
 			conversion->format++;
 		}
 		else if (isdigit(conversion->format[0]))
@@ -531,7 +531,7 @@ static void scanf_assign_number(scanf_conv_t *conversion, scanf_number_t num, bo
 {
 	if (conversion->specifier == 'p') // Pointers assign a void**
 	{
-		*ARG(void**) = (void*)(long)num.unsigned_num;
+		*ARG(void**) = (void*)(unsigned long)num.unsigned_num;
 		return;
 	}
 
@@ -632,7 +632,7 @@ static void generic_scanf(scanf_conv_t *conversion)
 				conversion->suppress = true;
 			}
 
-			if (isalnum(*format)) // Maximum field width
+			if (isdigit(*format)) // Maximum field width
 			{
 				char *str_end = NULL;
 				int len = strtol(format, &str_end, 10);
@@ -899,6 +899,11 @@ static void generic_scanf(scanf_conv_t *conversion)
 					conversion->assigned--;
 					break;
 				}
+				default:
+				{
+					format--; // Treat the invalid conversion specifier as normal char
+					break;
+				}
 			}
 
 			conversion->assigned++; // Increment assignment counter
@@ -975,7 +980,7 @@ static void generic_printf(printf_conv_t *conversion)
 					conversion->written++;
 
 					// Specification says to first convert to unsigned char
-					unsigned char c = (unsigned char)va_arg(conversion->ap, int);
+					unsigned char c = (unsigned char)ARG(int);
 					
 					conversion->minimal_width--;
 					write_padding(conversion, false, ' ');
@@ -988,7 +993,7 @@ static void generic_printf(printf_conv_t *conversion)
 				}
 				case 's': // Print string
 				{
-					char* s = va_arg(conversion->ap, char*);
+					char* s = ARG(char*);
 					size_t size = strlen(s);
 					
 					// Precision declares maximum characters to be printed
@@ -1145,48 +1150,46 @@ static void generic_printf(printf_conv_t *conversion)
 				}
 				case 'n': // Store characters written
 				{
-					void* var = va_arg(conversion->ap, void*);
-
 					switch(conversion->length)
 					{
 						case CONVERSION_LENGTH_HH:
 						{
-							*(char*)var = (char)conversion->written;
+							*ARG(char*) = (char)conversion->written;
 							break;
 						}
 						case CONVERSION_LENGTH_H:
 						{
-							*(short*)var = (short)conversion->written;
+							*ARG(short*) = (short)conversion->written;
 							break;
 						}
 						case CONVERSION_LENGTH_NONE:
 						{
-							*(int*)var = (int)conversion->written;
+							*ARG(int*) = (int)conversion->written;
 							break;
 						}
 						case CONVERSION_LENGTH_L:
 						{
-							*(long*)var = (long)conversion->written;
+							*ARG(long*) = (long)conversion->written;
 							break;
 						}
 						case CONVERSION_LENGTH_LL:
 						{
-							*(long long*)var = (long long)conversion->written;
+							*ARG(long long*) = (long long)conversion->written;
 							break;
 						}
 						case CONVERSION_LENGTH_J:
 						{
-							*(int64_t*)var = (int64_t)conversion->written;
+							*ARG(intmax_t*) = (intmax_t)conversion->written;
 							break;
 						}
 						case CONVERSION_LENGTH_Z:
 						{
-							*(size_t*)var = (size_t)conversion->written;
+							*ARG(size_t*) = (size_t)conversion->written;
 							break;
 						}
 						case CONVERSION_LENGTH_T:
 						{
-							*(ptrdiff_t*)var = (ptrdiff_t)conversion->written;
+							*ARG(ptrdiff_t*) = (ptrdiff_t)conversion->written;
 							break;
 						}
 						default:
@@ -1197,7 +1200,7 @@ static void generic_printf(printf_conv_t *conversion)
 				}
 				case 'p': // Print pointer
 				{
-					uint32_t ptr = va_arg(conversion->ap, uint32_t);
+					unsigned long ptr = ARG(unsigned long);
 					char repr[11] = { '0', 'x', 0 };
 					uitoa((size_t)ptr, repr + 2, 16, true);
 					
