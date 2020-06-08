@@ -6,10 +6,10 @@
 
 #include <stdint.h>
 #include <limits.h>
-
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include "../include/vfs/vfs.h"
 #include "../include/memory/heap.h"
@@ -1627,7 +1627,20 @@ int ferror(FILE *stream)
 
 void perror(const char *s)
 {
-	//TODO: Implement errno.h
+	if (s)
+	{
+		size_t len = strlen(s);
+		for (size_t i = 0; i < len; i++)
+			stderr->write(stderr, s[i]);
+		
+		stderr->write(stderr, ':');
+		stderr->write(stderr, ' ');
+	}
+
+	const char *err = __err_str[errno];
+	size_t len = strlen(err);
+		for (size_t i = 0; i < len; i++)
+			stderr->write(stderr, err[i]);
 }
 
 int remove(const char *fname)
