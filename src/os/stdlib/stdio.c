@@ -1738,7 +1738,8 @@ void rewind(FILE *stream)
 
 void clearerr(FILE *stream)
 {
-	//TODO: Implement error flags in vfs to clear here
+	if (stream)
+		stream->flags &= ~(F_ERROR);
 }
 
 int feof(FILE *stream)
@@ -1748,8 +1749,7 @@ int feof(FILE *stream)
 
 int ferror(FILE *stream)
 {
-	//TODO: See clearerr
-	return 0;
+	return stream ? stream->flags & F_ERROR : 0;
 }
 
 void perror(const char *s)
