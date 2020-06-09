@@ -545,6 +545,19 @@ size_t vfsRead(FILE *file, void *buf, size_t size)
 		return 0;
 
 	char *buffer = (char*)buf;
+	if (!buffer)
+		return 0;
+
+	if (file->mode == _IONBF || file->ioBuf == NULL) // No buffer available
+	{
+		// Read directly into the passed buffer
+		size_t amount =  file->file_desc->read(file->file_desc, file->pos, size, buffer);
+		
+		if (amount < size)
+			file->flags |= O_EOF;
+
+		return amount;
+	}
 
 	size_t read = 0;
 	size_t rdSize = (size_t)(file->rdEnd - file->rdBuf);
@@ -589,6 +602,19 @@ size_t vfsWrite(FILE *file, const void *buf, size_t size)
 		return 0;
 
 	char *buffer = (char*)buf;
+	if (!buffer)
+		return 0;
+
+	if (file->mode == _IONBF || file->ioBuf == NULL) // No buffer available
+	{
+		// Read directly into the passed buffer
+		size_t amount = file->file_desc->write(file->file_desc, file->pos, size, buffer);
+
+		if (amount < size)
+			file->flags |= F_ERROR;
+
+		return amount;
+	}
 
 	size_t written = 0;
 	size_t wrSize = (size_t)(file->wrEnd - file->wrBuf);
@@ -614,7 +640,10 @@ size_t vfsWrite(FILE *file, const void *buf, size_t size)
 
 		// Break if the filesystem couldn't write all data
 		if (amount < wrSize)
+		{
+			file->flags |= F_ERROR;
 			break;
+		}
 	}
 
 	// Return the number of bytes written
@@ -686,7 +715,10 @@ int vfsFlush(FILE *file)
 
 	// Check if write error occured
 	if (amount < wrSize)
+	{
+		file->flags |= F_ERROR;
 		return EOF;
+	}
 
 	return 0;
 }
@@ -694,13 +726,13 @@ int vfsFlush(FILE *file)
 // Sets the internal buffer to the specified parameters
 int vfsSetvbuf(FILE *file, char *buf, int mode, size_t size)
 {
-	if (size < 2 || mode > 2)
+	if ((size < 2 && mode != _IONBF) || mode > 2)
 		return -1;
 
 	char *ioBuf = NULL;
 
 	if (!buf) // Use driver-managed buffer
-		ioBuf = kmalloc(size);
+		ioBuf = size > 0 ? kmalloc(size) : NULL;
 	else      // Use user-buffer
 		ioBuf = buf;
 

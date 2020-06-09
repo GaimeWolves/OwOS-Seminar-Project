@@ -38,6 +38,7 @@
 #define O_TRUNC  0x00000010 // truncate mode (truncates the filesize to 0 essentialy rewrites file)
 #define O_BIN    0x00000020 // binary mode
 #define O_EOF    0x80000000 // EOF indicator flag
+#define F_ERROR  0x20000000 // I/O error indicator
 
 #define BUFSIZ 1024 // Standard complete buffer size (one sector for each buffer)
 
