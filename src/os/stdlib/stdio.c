@@ -1243,18 +1243,47 @@ static void generic_printf(printf_conv_t *conversion)
 
 FILE *fopen(const char *filename, const char *mode)
 {
-	return vfsOpen(filename, mode);
+	if (!mode || !filename)
+	{
+		errno = !filename ? ENOENT : EINVAL;
+		return NULL;
+	}
+
+	FILE *file;
+	if (!(file = vfsOpen(filename, mode)))
+		errno = ENOENT;
+
+	return file;
 }
 
 FILE *freopen(const char *filename, const char *mode, FILE *stream)
 {
+	if (!stream)
+	{
+		errno = EBADF;
+		return NULL;
+	}
+
+	if (!mode)
+	{
+		errno = EINVAL;
+		return NULL;
+	}
+
+	FILE *file;
+	if (!(file = vfsReopen(filename, mode, stream)))
+		errno = ENOENT;
+
 	return vfsReopen(filename, mode, stream);
 }
 
 int fclose(FILE *stream)
 {
 	if (!stream)
+	{
+		errno = EBADF;
 		return EOF;
+	}
 
 	vfsClose(stream);
 	return 0;
@@ -1262,7 +1291,19 @@ int fclose(FILE *stream)
 
 int fflush(FILE *stream)
 {
-	return vfsFlush(stream);
+	if (!stream)
+	{
+		errno = EBADF;
+		return EOF;
+	}
+
+	if (vfsFlush(stream))
+	{
+		errno = ENOSPC;
+		return EOF;
+	}
+
+	return 0;
 }
 
 void setbuf(FILE *stream, char *buffer)
@@ -1275,48 +1316,96 @@ void setbuf(FILE *stream, char *buffer)
 
 int setvbuf(FILE *stream, char *buffer, int mode, size_t size)
 {
+	if (!stream)
+	{
+		errno = EBADF;
+		return EOF;
+	}
+
 	return vfsSetvbuf(stream, buffer, mode, size);
 }
 
 size_t fread(void *buffer, size_t size, size_t count, FILE *stream)
 {
+	if (!stream)
+	{
+		errno = EBADF;
+		return 0;
+	}
+
 	size_t read = vfsRead(stream, buffer, size * count);
 	return read / size;
 }
 
 size_t fwrite(const void *buffer, size_t size, size_t count, FILE *stream)
 {
+	if (!stream)
+	{
+		errno = EBADF;
+		return 0;
+	}
+
 	size_t written = vfsWrite(stream, buffer, size * count);
 	return written / size;
 }
 
 int fgetc(FILE *stream)
 {
+	if (!stream)
+	{
+		errno = EBADF;
+		return EOF;
+	}
+
 	return vfsGetc(stream);
 }
 
 int getc(FILE *stream)
 {
-	return vfsGetc(stream);
+	return fgetc(stream);
 }
 
 char *fgets(char *str, int count, FILE *stream)
 {
+	if (!stream)
+	{
+		errno = EBADF;
+		return NULL;
+	}
+
+	if (!str || count < 1)
+	{
+		errno = EINVAL;
+		return NULL;
+	}
+
 	return vfsGets(str, count, stream);
 }
 
 int fputc(int ch, FILE *stream)
 {
+	if (!stream)
+	{
+		errno = EBADF;
+		return EOF;
+	}
+
 	return vfsPutc(ch, stream);
 }
 
 int putc(int ch, FILE *stream)
 {
-	return vfsPutc(ch, stream);
+	return fputc(ch, stream);
 }
 
 int fputs(const char *str, FILE *stream)
 {
+	if (!stream)
+	{
+		errno = EBADF;
+		return EOF;
+	}
+
 	return vfsPuts(str, stream);
 }
 
@@ -1574,7 +1663,13 @@ int vsnprintf(char *buffer, size_t bufsz, const char *format, va_list ap)
 long ftell(FILE *stream)
 {
 	if (!stream)
+	{
+		errno = EBADF;
 		return EOF;
+	}
+
+	if (stream->pos > LONG_MAX)
+		errno = EOVERFLOW;
 
 	return stream->pos;
 }
@@ -1582,7 +1677,10 @@ long ftell(FILE *stream)
 int fgetpos(FILE *stream, fpos_t *pos)
 {
 	if (!stream || !pos)
+	{
+		errno = EBADF;
 		return EOF;
+	}
 
 	*pos = stream->pos;
 
@@ -1591,13 +1689,42 @@ int fgetpos(FILE *stream, fpos_t *pos)
 
 int fseek(FILE *stream, long offset, int origin)
 {
+	if (origin < SEEK_SET || origin > SEEK_END)
+	{
+		errno = EINVAL;
+		return EOF;
+	}
+
+	if (offset < 0)
+	{
+		if (origin == SEEK_SET)
+		{
+			errno = EINVAL;
+			return EOF;
+		}
+		else if (stream->pos < (unsigned long)-offset)
+		{
+			errno = EINVAL;
+			return EOF;
+		}
+	}
+
+	if (!stream)
+	{
+		errno = EBADF;
+		return EOF;
+	}
+
 	return vfsSeek(stream, offset, origin);
 }
 
 int fsetpos(FILE *stream, const fpos_t *pos)
 {
 	if (!stream || !pos)
+	{
+		errno = EBADF;
 		return EOF;
+	}
 
 	vfsSeek(stream, *pos, SEEK_SET);
 
@@ -1606,7 +1733,7 @@ int fsetpos(FILE *stream, const fpos_t *pos)
 
 void rewind(FILE *stream)
 {
-	vfsSeek(stream, 0, SEEK_SET);
+	fseek(stream, 0, SEEK_SET);
 }
 
 void clearerr(FILE *stream)
@@ -1645,11 +1772,29 @@ void perror(const char *s)
 
 int remove(const char *fname)
 {
-	return vfsRemove(fname);
+	if (!fname)
+	{
+		errno = ENOENT;
+		return EOF;
+	}
+
+	if (vfsRemove(fname))
+	{
+		errno = ENOENT;
+		return EOF;
+	}
+
+	return 0;
 }
 
 int rename(const char *old_filename, const char *new_filename)
 {
+	if (!old_filename || !new_filename)
+	{
+		errno = EINVAL;
+		return EOF;
+	}
+
 	return vfsRename(old_filename, new_filename);
 }
 
@@ -1682,12 +1827,30 @@ FILE *tmpfile()
 
 	kfree(fname);
 
+	if (!file)
+		errno = ENOSPC;
+
 	return file;
 }
 
 char *tmpnam(char *filename)
 {
+	// If filename is NULL a internal buffer should be used
+	static char staticFilename[FILENAME_MAX + 1];
+	if (!filename)
+		filename = staticFilename;
+
 	DIR *tmpdir = vfsOpendir("/tmp");
+	if (!tmpdir) // Create tmp dir
+	{
+		if (vfsMkdir("/tmp"))
+			return NULL; // Couldn't create tmp dir
+
+		tmpdir = vfsOpendir("/tmp");
+		if (!tmpdir)
+			return NULL;
+	}
+
 	dirent *entry;
 
 	// Check all available tmp filenames

@@ -4,6 +4,8 @@
 //				Includes
 //------------------------------------------------------------------------------------------
 
+#include <errno.h>
+
 #include "../include/vfs/vfs.h"
 
 //------------------------------------------------------------------------------------------
@@ -12,34 +14,101 @@
 
 int mkdir(const char *dirname)
 {
-	return vfsMkdir(dirname);
+	if (!dirname)
+	{
+		errno = ENOENT;
+		return EOF;
+	}
+
+	if (vfsMkdir(dirname))
+	{
+		errno = ENOSPC;
+		return EOF;
+	}
+
+	return 0;
 }
 
 int rmdir(const char *dirname)
 {
+	if (!dirname)
+	{
+		errno = ENOENT;
+		return EOF;
+	}
+
 	// Check if path points to a directory
 	DIR *tmp = vfsOpendir(dirname);
 	if (!tmp)
+	{
+		errno = ENOTDIR;
 		return EOF;
+	}
+
+	if (vfsReaddir(tmp))
+		errno = ENOTEMPTY;
+
 	vfsClosedir(tmp);
 
+	if (vfsRemove(dirname))
+	{
+		errno = EEXIST;
+		return EOF;
+	}
+
 	// Try to remove it
-	return vfsRemove(dirname);
+	return 0;
 }
 
 DIR *opendir(const char *dirname)
 {
-	return vfsOpendir(dirname);
+	if (!dirname)
+	{
+		errno = ENOENT;
+		return NULL;
+	}
+
+	DIR *dir;
+	if (!(dir = vfsOpendir(dirname)))
+		errno = ENOENT;
+
+	return dir;
 }
 
 int closedir(DIR *dir)
 {
-	return vfsClosedir(dir);
+	if (!dir)
+	{
+		errno = EBADF;
+		return EOF;
+	}
+
+	if (vfsClosedir(dir))
+	{
+		errno = EBADF;
+		return EOF;
+	}
+
+	return 0;
 }
 
 dirent *readdir(DIR *dir)
 {
-	return vfsReaddir(dir);
+	if (!dir)
+	{
+		errno = EBADF;
+		return EOF;
+	}
+
+	dirent *entry;
+
+	if (!(entry = vfsReaddir(dir)))
+	{
+		errno = ENOENT;
+		return EOF;
+	}
+
+	return entry;
 }
 
 void rewinddir(DIR *dir)
