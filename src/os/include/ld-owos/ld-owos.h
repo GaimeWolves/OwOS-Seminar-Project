@@ -97,9 +97,9 @@ libinfo_t* loaded_libs[MAX_LOADED_LIBS];
 size_t loaded_lib_count;
 
 //The dynamic linked shell streams
-characterStream_t* in_stream_var;
-characterStream_t* out_stream_var;
-characterStream_t* err_stream_var;
+characterStream_t* stdout;
+characterStream_t* stdin;
+characterStream_t* stderr;
 
 //------------------------------------------------------------------------------------------
 //				Public Function

@@ -118,9 +118,9 @@ static bool test_already_loaded(libinfo_t* libinfo)
 int linker_main(characterStream_t* in_stream, characterStream_t* out_stream, characterStream_t* err_stream, FILE* executable, int argc, char *argv[])
 {
 	//Set stream vars
-	in_stream_var = in_stream;
-	out_stream_var = out_stream;
-	err_stream_var = err_stream;
+	stdin = in_stream;
+	stdout = out_stream;
+	stderr = err_stream;
 
 	//Extend the file to an ELF file
 	ELF_FILE* file = create_elf_file_struct(executable);
