@@ -237,6 +237,20 @@ int input_parser(const char* buffer, size_t buffersz, char** executable_name, in
 	current_entry = first_arg;
 	first_arg = first_arg->next;
 	kfree(current_entry);
+	//Check for non-absolute path
+	if((*executable_name)[0] != '/')
+	{
+		char* newBuffer = kmalloc(first_arg->size + 6);
+		newBuffer[0] = '/';
+		memcpy(&newBuffer[1], *executable_name, first_arg->size + 1);
+		newBuffer[first_arg->size + 2] = '.';
+		newBuffer[first_arg->size + 3] = 'e';
+		newBuffer[first_arg->size + 4] = 'l';
+		newBuffer[first_arg->size + 5] = 'f';
+
+		kfree(*executable_name);
+		*executable_name = newBuffer;
+	}
 
 	//Handle stream args
 	if(stream_parser(in_stream, del_in_stream, out_stream, del_out_stream, err_stream, del_err_stream) != 0)
