@@ -672,7 +672,7 @@ static void generic_scanf(scanf_conv_t *conversion)
 				case 'c': // Match any character(s)
 				{
 					char *buffer = ARG(char*);
-					if (conversion->maximum_width == 0)
+					if (conversion->maximum_width == -1)
 						conversion->maximum_width = 1;
 
 					while(conversion->maximum_width--)
@@ -810,6 +810,7 @@ static void generic_scanf(scanf_conv_t *conversion)
 				case 'i':
 				{
 					sign = true;
+					base = 10;
 
 				scanf_number_conv: ; // Converts the number and assigns it
 					char number[SCANF_MAX_DIGITS] = { 0 };
@@ -874,6 +875,9 @@ static void generic_scanf(scanf_conv_t *conversion)
 
 					conversion->ungetc(conversion, chr);
 
+					if (number[0] == '\0') // No number read -> matching error
+						return;
+
 					scanf_number_t num;
 					if (sign)
 						num.signed_num = strtoll(number, NULL, base);
@@ -911,6 +915,8 @@ static void generic_scanf(scanf_conv_t *conversion)
 		else if (isspace(*format)) // Cosume all whitespace characters
 		{
 			while(isspace(chr = conversion->getc(conversion)));
+			conversion->ungetc(conversion, chr);
+			format++;
 		}
 		else // Match literal character
 		{
@@ -919,7 +925,7 @@ static void generic_scanf(scanf_conv_t *conversion)
 			if (ch == EOF)
 				return;
 
-			if ((char)ch != *format)
+			if ((char)ch != *format++)
 				return;
 		}
 	}
@@ -1232,8 +1238,8 @@ static void generic_printf(printf_conv_t *conversion)
 		(*format)++;
 	}
 
-	// Terminate with null byte
-	if (bufsz && conversion->putc == (printf_putc_callback)str_putc)
+	// Terminal with null byte
+	if (bufsz)
 		conversion->putc('\0', conversion);
 }
 
