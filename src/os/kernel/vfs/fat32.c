@@ -1475,7 +1475,7 @@ int readdirFAT32(DIR *dirstream)
 	{
 		// Is the name small enough?
 		if (strlen(current->fullname) > FILENAME_MAX)
-			ret = EOVERFLOW;
+			ret = DIROVERFLOW;
 		else
 		{
 			// Copy the name into the dirent

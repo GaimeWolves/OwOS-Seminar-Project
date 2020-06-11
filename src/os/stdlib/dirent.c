@@ -97,7 +97,7 @@ dirent *readdir(DIR *dir)
 	if (!dir)
 	{
 		errno = EBADF;
-		return EOF;
+		return NULL;
 	}
 
 	dirent *entry;
@@ -105,7 +105,7 @@ dirent *readdir(DIR *dir)
 	if (!(entry = vfsReaddir(dir)))
 	{
 		errno = ENOENT;
-		return EOF;
+		return NULL;
 	}
 
 	return entry;

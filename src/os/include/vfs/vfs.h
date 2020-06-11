@@ -17,8 +17,8 @@
 #define FILENAME_MAX 128 // Max filename length
 
 // Error codes
-#define EOF       -1 // EOF indicator
-#define EOVERFLOW -2 // Overflow in directory stream
+#define EOF         -1 // EOF indicator
+#define DIROVERFLOW -2 // Overflow in directory stream
 
 // Used in seek methods
 #define SEEK_SET 0 // Seek uses beginning of file
