@@ -562,6 +562,11 @@ size_t vfsRead(FILE *file, void *buf, size_t size)
 	size_t read = 0;
 	size_t rdSize = (size_t)(file->rdEnd - file->rdBuf);
 
+	// Char devices may only provide one char at a time (stdin for example)
+	// so we set the read size to one to prevent O_EOF to be set prematurely.
+	if (file->file_desc->flags & FS_CHRDEVICE)
+		rdSize = 1;
+
 	// Read until EOF is reached or specified amount is read
 	while(!(file->flags & O_EOF && file->rdPtr == file->rdFil) && read < size)
 	{
@@ -617,18 +622,32 @@ size_t vfsWrite(FILE *file, const void *buf, size_t size)
 	}
 
 	size_t written = 0;
-	size_t wrSize = (size_t)(file->wrEnd - file->wrBuf);
+	size_t wrSize = 0;
+	bool forceFlush = false;
 
 	// Write until user-buffer is empty
 	while(written < size)
 	{
 		// Fill the stream-buffer
 		for (; file->wrPtr < file->wrEnd && written < size; file->wrPtr++, written++)
+		{
 			*file->wrPtr = buffer[written];
 
+			// Flush contents on newline if line buffered stream
+			if (file->mode == _IOLBF && buffer[written] == '\n')
+			{
+				written++;
+				file->wrPtr++;
+				forceFlush = true; // Prevent premature break if written == size
+				break;
+			}
+		}
+
 		// Is the user-buffer empty?
-		if (written >= size)
+		if (!forceFlush && written >= size)
 			break;
+
+		wrSize = (size_t)(file->wrPtr - file->wrBuf);
 
 		// Write the full buffer to the file
 		size_t amount = file->file_desc->write(file->file_desc, file->pos, wrSize, file->wrBuf);

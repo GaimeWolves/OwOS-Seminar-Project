@@ -43,8 +43,9 @@
 #define BUFSIZ 1024 // Standard complete buffer size (one sector for each buffer)
 
 // File flags
-#define FS_FILE        0x01
-#define FS_DIRECTORY   0x02
+#define FS_FILE      0x01
+#define FS_DIRECTORY 0x02
+#define FS_CHRDEVICE 0x04
 
 // Dirent flags
 #define DT_DIR 0x01 // Directory
