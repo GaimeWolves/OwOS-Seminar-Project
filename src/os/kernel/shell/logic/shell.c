@@ -36,15 +36,15 @@ static void shell_handle_input()
 	//Arguments
 	char** args = NULL;
 	//Input stream
-	characterStream_t* in_stream = NULL;
+	FILE* in_stream = NULL;
 	//Delete input stream
 	bool del_in_stream = false;
 	//Output stream
-	characterStream_t* out_stream = NULL;
+	FILE* out_stream = NULL;
 	//Delete output stream
 	bool del_out_stream = false;
 	//Error stream
-	characterStream_t* err_stream = NULL;
+	FILE* err_stream = NULL;
 	//Delete error stream
 	bool del_err_stream = false;
 	//Executable name
@@ -52,13 +52,6 @@ static void shell_handle_input()
 
 	if(input_parser(buffer, buffer_index, &executable_name, &argc, &args, &in_stream, &del_in_stream, &out_stream, &del_out_stream, &err_stream, &del_err_stream) == 0)
 	{
-		if(in_stream)
-			open(in_stream);
-		if(out_stream)
-			open(out_stream);
-		if(err_stream)
-			open(err_stream);
-
 		FILE* exe = vfsOpen(executable_name, "r");
 
 		if(exe)
@@ -66,11 +59,11 @@ static void shell_handle_input()
 	}
 
 	if(del_in_stream)
-		delete(in_stream);
+		vfsClose(in_stream);
 	if(del_out_stream)
-		delete(out_stream);
+		vfsClose(out_stream);
 	if(del_err_stream)
-		delete(err_stream);
+		vfsClose(err_stream);
 
 	for(int i = 0; i < argc; i++)
 	{
@@ -195,8 +188,7 @@ noreturn void shell_start(void)
 {
 	buffer = (char*)kmalloc(SHELL_MAX_INPUT_BUFFER);
 
-	characterStream_t* in_stream = shell_in_stream_get();
-	open(in_stream);
+	FILE* in_stream = shell_in_stream_get();
 
 	while(true)
 	{
@@ -207,7 +199,11 @@ noreturn void shell_start(void)
 		shell_frame_print_shell_line();
 
 		//Loop until input handler says to stop
-		while(shell_handle_input_char(read(in_stream)));
+		char character;
+		do
+		{
+			vfsRead(in_stream, &character, 1);
+		} while(shell_handle_input_char(character));
 
 		//Process input
 		shell_handle_input();

@@ -1,13 +1,12 @@
 #include "parser_main.h"
 
-#include <stream/fileStream.h>
-#include <shell/shell.h>
-#include <memory/heap.h>
 #include <string.h>
 
+#include <shell/shell.h>
+#include <memory/heap.h>
 #include <shell/in_stream.h>
 #include <shell/out_stream.h>
-//#include <shell/err_stream.h>
+#include <vfs/vfs.h>
 
 //------------------------------------------------------------------------------------------
 //				Types
@@ -54,7 +53,7 @@ static inline __attribute__((always_inline)) int entry_count()
 	return count;
 }
 
-static characterStream_t* create_file_stream(const char* str, size_t size, char* mode)
+static FILE* create_file_stream(const char* str, size_t size, char* mode)
 {
 	//Test if we have an absolute address
 	if(str[0] != '/')
@@ -78,10 +77,16 @@ static characterStream_t* create_file_stream(const char* str, size_t size, char*
 	strcpy(m, mode);
 
 	//Create the stream
-	return &createFileStream(file_name, m)->stream;
+	FILE* file = vfsOpen(file_name, m);
+
+	//Free memory
+	kfree(file_name);
+	kfree(m);
+
+	return file;
 }
 
-static int stream_parser(characterStream_t** in_stream, bool* del_in_stream, characterStream_t** out_stream, bool* del_out_stream, characterStream_t** err_stream, bool* del_err_stream)
+static int stream_parser(FILE** in_stream, bool* del_in_stream, FILE** out_stream, bool* del_out_stream, FILE** err_stream, bool* del_err_stream)
 {
 	//Loop through the linked list
 	argument_list_t* current = first_arg;
@@ -156,7 +161,7 @@ static int stream_parser(characterStream_t** in_stream, bool* del_in_stream, cha
 //------------------------------------------------------------------------------------------
 //				Public Function
 //------------------------------------------------------------------------------------------
-int input_parser(const char* buffer, size_t buffersz, char** executable_name, int* argc, char*** args, characterStream_t** in_stream, bool* del_in_stream, characterStream_t** out_stream, bool* del_out_stream, characterStream_t** err_stream, bool* del_err_stream)
+int input_parser(const char* buffer, size_t buffersz, char** executable_name, int* argc, char*** args, FILE** in_stream, bool* del_in_stream, FILE** out_stream, bool* del_out_stream, FILE** err_stream, bool* del_err_stream)
 {
 	//Iterate through the buffer
 	size_t length = -1;

@@ -3,7 +3,7 @@
 //------------------------------------------------------------------------------------------
 //				Includes
 //------------------------------------------------------------------------------------------
-#include <stream/stream.h>
+#include <vfs/vfs.h>
 
 #include <stddef.h>
 
@@ -22,6 +22,6 @@
 //------------------------------------------------------------------------------------------
 //				Public Function
 //------------------------------------------------------------------------------------------
-int input_parser(const char* buffer, size_t buffersz, char** executable_name, int* argc, char*** args, characterStream_t** in_stream, bool* del_in_stream, characterStream_t** out_stream, bool* del_out_stream, characterStream_t** err_stream, bool* del_err_stream);
+int input_parser(const char* buffer, size_t buffersz, char** executable_name, int* argc, char*** args, FILE** in_stream, bool* del_in_stream, FILE** out_stream, bool* del_out_stream, FILE** err_stream, bool* del_err_stream);
 
 #endif

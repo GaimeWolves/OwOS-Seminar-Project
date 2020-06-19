@@ -107,19 +107,15 @@ typedef union scanf_number_t
 
 // Three versions of every callback for char**, characterStream* and FILE*
 static void str_putc(const char ch, printf_conv_t *conv);
-static void stdio_putc(const char ch, printf_conv_t *conv);
 static void file_putc(const char ch, printf_conv_t *conv);
 
 static void str_puts(const char *str, size_t size, printf_conv_t *conv);
-static void stdio_puts(const char *str, size_t size, printf_conv_t *conv);
 static void file_puts(const char *str, size_t size, printf_conv_t *conv);
 
 static int str_getc(scanf_conv_t *conv);
-static int stdio_getc(scanf_conv_t *conv);
 static int file_getc(scanf_conv_t *conv);
 
 static void str_ungetc(scanf_conv_t *conv, const char ch);
-static void stdio_ungetc(scanf_conv_t *conv, const char ch);
 static void file_ungetc(scanf_conv_t *conv, const char ch);
 
 
@@ -155,13 +151,6 @@ static void str_putc(const char ch, printf_conv_t *conv)
 	*(*buffer)++ = ch;
 }
 
-static void stdio_putc(const char ch, printf_conv_t *conv)
-{
-	// We don't need to use the buffer variable
-	// as writing always refers to stdout
-	stdout->write(stdout, ch);
-}
-
 static void file_putc(const char ch, printf_conv_t *conv)
 {
 	FILE *file = (FILE*)conv->buffer;
@@ -173,12 +162,6 @@ static void str_puts(const char *str, size_t size, printf_conv_t *conv)
 	char **buffer = (char**)&conv->buffer;
 	strncpy(*buffer, str, size);
 	*buffer += size;
-}
-
-static void stdio_puts(const char *str, size_t size, printf_conv_t *conv)
-{
-	for (size_t i = 0; i <= size; i++)
-		stdout->write(stdout, str[i]);
 }
 
 static void file_puts(const char *str, size_t size, printf_conv_t *conv)
@@ -203,12 +186,6 @@ static int str_getc(scanf_conv_t *conv)
 		return (int)got;
 }
 
-static int stdio_getc(scanf_conv_t *conv)
-{
-	conv->read++;
-	return (int)stdin->read(stdin);
-}
-
 static int file_getc(scanf_conv_t *conv)
 {
 	conv->read++;
@@ -221,12 +198,6 @@ static void str_ungetc(scanf_conv_t *conv, const char ch)
 	conv->read--;
 	char **buffer = (char**)&conv->buffer;
 	*--(*buffer) = ch;
-}
-
-static void stdio_ungetc(scanf_conv_t *conv, const char ch)
-{
-	conv->read--;
-	stdin->unread(stdin, ch);
 }
 
 static void file_ungetc(scanf_conv_t *conv, const char ch)
@@ -1417,7 +1388,7 @@ int fputs(const char *str, FILE *stream)
 
 int getchar()
 {
-	return stdin->read(stdin);
+	return vfsGetc(stdin);
 }
 
 char *gets(char *str)
@@ -1425,12 +1396,12 @@ char *gets(char *str)
 	if (!str)
 		return NULL;
 
-	char chr = stdin->read(stdin);
+	char chr = vfsGetc(stdin);
 
 	while (chr != '\n')
 	{
 		*str++ = chr;
-		chr = stdin->read(stdin);
+		chr = vfsGetc(stdin);
 	}
 
 	*str = '\0';
@@ -1445,7 +1416,7 @@ char *gets_s(char *str, size_t n)
 
 	while(n-- > 1)
 	{
-		char chr = stdin->read(stdin);
+		char chr = vfsGetc(stdin);
 
 		if (chr == '\n')
 			break;
@@ -1460,16 +1431,14 @@ char *gets_s(char *str, size_t n)
 
 int putchar(int ch)
 {
-	stdout->write(stdout, (char)ch);
+	vfsPutc((char)ch, stdout);
 	return 0;
 }
 
 int puts(const char *str)
 {
-	while(*str != '\0')
-		stdout->write(stdout, *str++);
-
-	stdout->write(stdout, '\n');
+	vfsPuts(str, stdout);
+	vfsPutc('\n', stdout);
 
 	return 0;
 }
@@ -1523,8 +1492,8 @@ int vscanf(const char *format, va_list ap)
 
 	conversion.ap = ap;
 	conversion.buffer = (uintptr_t)stdin;
-	conversion.getc = (scanf_getc_callback)stdio_getc;
-	conversion.ungetc = (scanf_ungetc_callback)stdio_ungetc;
+	conversion.getc = (scanf_getc_callback)file_getc;
+	conversion.ungetc = (scanf_ungetc_callback)file_ungetc;
 	conversion.format = format;
 
 	generic_scanf(&conversion);
@@ -1618,8 +1587,8 @@ int vprintf(const char *format, va_list ap)
 	conversion.ap = ap;
 	conversion.buffer = (uintptr_t)stdout;
 	conversion.bufsz = INT_MAX;
-	conversion.putc = (printf_putc_callback)stdio_putc;
-	conversion.puts = (printf_puts_callback)stdio_puts;
+	conversion.putc = (printf_putc_callback)file_putc;
+	conversion.puts = (printf_puts_callback)file_puts;
 	conversion.format = format;
 
 	generic_printf(&conversion);
@@ -1762,18 +1731,15 @@ void perror(const char *s)
 {
 	if (s)
 	{
-		size_t len = strlen(s);
-		for (size_t i = 0; i < len; i++)
-			stderr->write(stderr, s[i]);
+		vfsPuts(s, stderr);
 		
-		stderr->write(stderr, ':');
-		stderr->write(stderr, ' ');
+		vfsPutc(':', stderr);
+		vfsPutc(' ', stderr);
 	}
 
 	const char *err = __err_str[errno];
-	size_t len = strlen(err);
-		for (size_t i = 0; i < len; i++)
-			stderr->write(stderr, err[i]);
+	vfsPuts(err, stderr);
+	vfsPutc('\n', stderr);
 }
 
 int remove(const char *fname)

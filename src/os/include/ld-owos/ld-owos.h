@@ -97,16 +97,16 @@ libinfo_t* loaded_libs[MAX_LOADED_LIBS];
 size_t loaded_lib_count;
 
 //The dynamic linked shell streams
-characterStream_t* stdout;
-characterStream_t* stdin;
-characterStream_t* stderr;
+FILE* stdout;
+FILE* stdin;
+FILE* stderr;
 
 //------------------------------------------------------------------------------------------
 //				Public Function
 //------------------------------------------------------------------------------------------
 
 //Load the executable specified by executable an initialisze it with the given streams and the command line args
-int linker_main(characterStream_t* in_stream, characterStream_t* out_stream, characterStream_t* err_stream, FILE* executable, int argc, char *argv[]);
+int linker_main(FILE* in_stream, FILE* out_stream, FILE* err_stream, FILE* executable, int argc, char *argv[]);
 //Processes the program header of a library
 int process_program_header(libinfo_t* libinfo);
 

@@ -115,7 +115,7 @@ static bool test_already_loaded(libinfo_t* libinfo)
 //Load the executable specified by executable an initialisze it with the given streams and the command line args
 //EXCEPTIONS:
 //	-1000: Could not parse executable file
-int linker_main(characterStream_t* in_stream, characterStream_t* out_stream, characterStream_t* err_stream, FILE* executable, int argc, char *argv[])
+int linker_main(FILE* in_stream, FILE* out_stream, FILE* err_stream, FILE* executable, int argc, char *argv[])
 {
 	//Set stream vars
 	stdin = in_stream;
