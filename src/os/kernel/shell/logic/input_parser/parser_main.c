@@ -144,6 +144,8 @@ static int stream_parser(characterStream_t** in_stream, bool* del_in_stream, cha
 	if(*err_stream == NULL)
 	{
 		//There is no stderr stream at the moment
+		//We just use the shell stdout
+		*err_stream = shell_out_stream_get();
 		*del_err_stream = false;
 	}
 
@@ -229,24 +231,22 @@ int input_parser(const char* buffer, size_t buffersz, char** executable_name, in
 	//Copy string and set the termination character
 	memcpy(*executable_name, first_arg->str, first_arg->size);
 	(*executable_name)[first_arg->size] = 0;
-	//Delete entry out of the linked list
-	if(first_arg->next)
-	{
-		first_arg->next->prev = NULL;
-	}
-	current_entry = first_arg;
-	first_arg = first_arg->next;
-	kfree(current_entry);
+
 	//Check for non-absolute path
 	if((*executable_name)[0] != '/')
 	{
-		char* newBuffer = kmalloc(first_arg->size + 6);
+		char* newBuffer = kmalloc(first_arg->size + 1 + 9);
 		newBuffer[0] = '/';
-		memcpy(&newBuffer[1], *executable_name, first_arg->size + 1);
-		newBuffer[first_arg->size + 2] = '.';
-		newBuffer[first_arg->size + 3] = 'e';
-		newBuffer[first_arg->size + 4] = 'l';
-		newBuffer[first_arg->size + 5] = 'f';
+		newBuffer[1] = 'b';
+		newBuffer[2] = 'i';
+		newBuffer[3] = 'n';
+		newBuffer[4] = '/';
+		memcpy(&newBuffer[5], *executable_name, first_arg->size);
+		newBuffer[first_arg->size + 0 + 5] = '.';
+		newBuffer[first_arg->size + 1 + 5] = 'e';
+		newBuffer[first_arg->size + 2 + 5] = 'l';
+		newBuffer[first_arg->size + 3 + 5] = 'f';
+		newBuffer[first_arg->size + 4 + 5] = 0;
 
 		kfree(*executable_name);
 		*executable_name = newBuffer;
