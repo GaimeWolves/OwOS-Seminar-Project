@@ -1209,9 +1209,9 @@ static void generic_printf(printf_conv_t *conversion)
 		(*format)++;
 	}
 
-	// Terminal with null byte
-	if (bufsz)
-		conversion->putc('\0', conversion);
+	// Terminate with null byte if sprintf was used
+    if (bufsz && conversion->putc == (printf_putc_callback)str_putc)
+        conversion->putc('\0', conversion);
 }
 
 //------------------------------------------------------------------------------------------

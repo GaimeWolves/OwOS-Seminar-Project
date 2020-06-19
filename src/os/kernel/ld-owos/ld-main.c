@@ -139,6 +139,9 @@ int linker_main(FILE* in_stream, FILE* out_stream, FILE* err_stream, FILE* execu
 		program_entry = get_elf_header(file)->entry_point + libinfo->base_address;
 
 		returnCode = program_entry(argc, argv);
+
+		vfsFlush(stdout);
+		vfsFlush(stderr);
 	}
 
 	//Free memory
