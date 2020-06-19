@@ -1,6 +1,8 @@
 #include <stdlib.h>
-
+//Stdlib includes
 #include <ctype.h>
+//Kernel includes
+#include "../../include/memory/heap.h"
 
 char* ulltoa(unsigned long long num, char* buf, size_t base, bool prepend_zeros)
 {
@@ -190,4 +192,22 @@ long atol(const char *str)
 int atoi(const char *str)
 {
 	return (int)strtol(str, NULL, 10);
+}
+
+//Heap functions
+void* malloc(size_t size)
+{
+	return kmalloc(size);
+}
+void free(void *ptr)
+{
+	return kfree(ptr);
+}
+void* calloc(size_t nmemb, size_t size)
+{
+	return kcalloc(nmemb, size);
+}
+void* realloc(void *ptr, size_t size)
+{
+	return krealloc(ptr, size);
 }

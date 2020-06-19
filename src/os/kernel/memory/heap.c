@@ -558,6 +558,55 @@ void* kzalloc(size_t size)
 	return alloc;
 }
 
+//Resizes the area. Content is preserved
+void* krealloc(void* ptr, size_t size)
+{
+	//If the pointer is undefined krealloc behaves as kmalloc
+	if(!ptr)
+		return kmalloc(size);
+	//If the size is zero krealloc behaves as kfree
+	if(!size)
+	{
+		kfree(ptr);
+		return NULL;
+	}
+
+	//Search the allocation
+	allocation_t* allocation = NULL;
+	for (chunk_t *chunk = heap; chunk != NULL && allocation == NULL; chunk = chunk->next)
+	{
+		for (allocation_t *alloc = chunk->table; alloc != NULL && allocation == NULL; alloc = alloc->next)
+		{
+			if ((uintptr_t)alloc + sizeof(allocation_t) == (uintptr_t)ptr)
+			{
+				allocation = alloc;
+			}
+		}
+	}
+	//If we found nothing just allocate new space
+	if(allocation == NULL)
+		return kmalloc(size);
+
+	//If the size is smaller just cut a part off
+	if(size <= allocation->size)
+	{
+		allocation->size = size;
+		return ptr;
+	}
+	//Otherwise we need a new allocation
+	else
+	{
+		//Get new larger memory space
+		void* newPtr = kmalloc(size);
+		//Copy old content to the new allocation
+		memcpy(newPtr, ptr, allocation->size);
+		//Free old allocation
+		kfree(ptr);
+		//Return new allocation
+		return newPtr;
+	}
+}
+
 // Allocates space for an array
 void* kmalloc_array(size_t n, size_t size)
 {

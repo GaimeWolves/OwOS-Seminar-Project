@@ -26,6 +26,7 @@
 
 void* kmalloc(size_t size);
 void* kzalloc(size_t size);
+void* krealloc(void* ptr, size_t size);
 
 void* kmalloc_array(size_t n, size_t size);
 void* kcalloc(size_t n, size_t size);
