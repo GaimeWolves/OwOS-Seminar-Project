@@ -202,7 +202,11 @@ noreturn void shell_start(void)
 		char character;
 		do
 		{
-			vfsRead(in_stream, &character, 1);
+			while(vfsRead(in_stream, &character, 1) == 0)
+			{
+				//Don't allow EOF in the shell
+				in_stream->flags &= ~O_EOF;
+			}
 		} while(shell_handle_input_char(character));
 
 		//Process input
