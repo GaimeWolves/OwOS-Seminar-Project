@@ -52,6 +52,7 @@ static size_t shell_in_shell_read(file_desc_t *node, size_t offset, size_t size,
 
 	//Read from the buffer and increase to the next char
 	char character = shell_in_buffer[shell_in_bufbase++];
+	shell_in_bufcount--;
 	//Test for eof character
 	if(character == 0x04)
 	{
@@ -59,7 +60,6 @@ static size_t shell_in_shell_read(file_desc_t *node, size_t offset, size_t size,
 	}
 	//If it is not eof return it
 	*buf = character;
-	shell_in_bufcount--;
 
 	return 1;
 }
