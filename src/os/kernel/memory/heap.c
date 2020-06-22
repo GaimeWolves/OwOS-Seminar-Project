@@ -14,6 +14,8 @@
 //				Constants
 //------------------------------------------------------------------------------------------
 
+#define GROUP_SIZE 4 // The minimum amount of blocks to optimize for to reduce runtime
+
 //------------------------------------------------------------------------------------------
 //				Types
 //------------------------------------------------------------------------------------------
@@ -37,6 +39,7 @@ typedef struct chunk_t
 
 	// The amount of memory blocks this chunk spans
 	size_t blocks;
+	size_t largestFree;
 
 	// Holds the table of allocations of this chunk
 	allocation_t *table;
@@ -64,6 +67,7 @@ static int tryResizeChunk(chunk_t *chunk, size_t size);
 static chunk_t* createNewChunk(size_t size);
 static chunk_t* extendHeap(size_t size);
 
+static void findLargestFree(chunk_t *chunk);
 static void optimizeChunk(chunk_t *chunk);
 
 static allocation_t* createAllocation(chunk_t *chunk, size_t size);
@@ -136,6 +140,14 @@ static void tryLinkChunks(chunk_t *lower, chunk_t *higher)
 		lower->next = higher->next;
 		// Add pages of the higher chunk to the lower
 		lower->blocks += higher->blocks;
+		
+		lower->largestFree = lower->largestFree > higher->largestFree ? lower->largestFree : higher->largestFree;
+
+		// Space between the last allocation and the higher chunk
+		uintptr_t space = (uintptr_t)higher->table - ((uintptr_t)lastAlloc + sizeof(allocation_t) + lastAlloc->size);
+
+		if (space > lower->largestFree)
+			lower->largestFree = space;
 
 		debug_printf("[HEAP] Linked chunks @ %p and %p", (void*)lower, (void*)higher);
 	}
@@ -165,6 +177,10 @@ static int tryResizeChunk(chunk_t *chunk, size_t size)
 			// Relink chain
 			if (chunk->prev) chunk->prev->next = chunk->next;
 			if (chunk->next) chunk->next->prev = chunk->prev;
+
+			uintptr_t space = (chunk->table ? (uintptr_t)chunk->table : chunkEnd(chunk)) - (uintptr_t)chunk - sizeof(chunk_t);
+			if (space > chunk->largestFree)
+				chunk->largestFree = space;
 
 			debug_printf("[HEAP] Extended chunk @ %p downwards to %u pages", (void*)actualAddress, chunk->blocks);
 
@@ -197,6 +213,10 @@ static int tryResizeChunk(chunk_t *chunk, size_t size)
 		{
 			// Adjust chunk size
 			chunk->blocks += blocks;
+
+			blockEnd = chunkEnd(chunk);
+			if (blockEnd - endPtr > chunk->largestFree)
+				chunk->largestFree = blockEnd - endPtr;
 
 			debug_printf("[HEAP] Extended chunk @ %p upwards to %u pages", (void*)chunk, chunk->blocks);
 
@@ -232,6 +252,7 @@ static chunk_t* createNewChunk(size_t size)
 	newChunk->prev = NULL;
 	newChunk->next = NULL;
 	newChunk->table = NULL;
+	newChunk->largestFree = (newChunk->blocks * PMM_BLOCK_SIZE) - sizeof(chunk_t);
 
 	// Find spot to fit chunk into
 	for (chunk_t *current = heap; current; current = current->next)
@@ -278,12 +299,59 @@ static chunk_t* extendHeap(size_t size)
 	return createNewChunk(size);
 }
 
+static void findLargestFree(chunk_t *chunk)
+{
+	// Chunk is empty
+	if (!chunk->table)
+		chunk->largestFree = chunk->blocks * PMM_BLOCK_SIZE - sizeof(chunk_t);
+	else
+	{
+		allocation_t *current = chunk->table;
+		allocation_t *next = current->next;
+		
+		size_t largest = 0;
+
+		// Check space before first allocation
+		size_t space = (uintptr_t)current - (uintptr_t)chunk - sizeof(chunk_t);
+		if (largest < space)
+			largest = space;
+
+		// Check space between allocations
+		while(next)
+		{
+			uintptr_t end = allocEnd(current);
+			size_t available = (uintptr_t)next - end;
+
+			if (largest < available)
+				largest = available;
+
+			// Move to next allocation
+			current = next;
+			next = current->next;
+		}
+
+		// Check space from the last allocation to the end of the chunk
+		uintptr_t end = chunkEnd(chunk);
+		uintptr_t last = allocEnd(current);
+
+		size_t available = end - last;
+
+		if (largest < available)
+			largest = available;
+	
+		chunk->largestFree = largest;
+	}
+}
+
 // Tries to optimize the size of the chunk
 static void optimizeChunk(chunk_t *chunk)
 {
-	// Case 1: Chunk is empty
+	// Case 1: Chunk is empty and was not used for only a few allocations
 	if (!chunk->table)
 	{
+		if (chunk->blocks < GROUP_SIZE)
+			return;
+
 		if (chunk == heap) // Heap got relocated
 			moveHeap(chunk->next);
 
@@ -308,8 +376,8 @@ static void optimizeChunk(chunk_t *chunk)
 		size_t skipBlocks = space / PMM_BLOCK_SIZE; // Blocks to move forward
 		uintptr_t newAddress = (uintptr_t)chunk + skipBlocks * PMM_BLOCK_SIZE;
 
-		// Move chunk to new address
-		if (skipBlocks > 0)
+		// Move chunk to new address if blocks are free
+		if (skipBlocks > GROUP_SIZE)
 		{
 			if (chunk == heap) // Heap got relocated
 				moveHeap((chunk_t*)newAddress);
@@ -326,6 +394,10 @@ static void optimizeChunk(chunk_t *chunk)
 			if (chunk->prev) chunk->prev->next = chunk;
 
 			chunk->blocks -= skipBlocks;
+			
+			// We don't know the largest free memory area anymore
+			if (space == chunk->largestFree)
+				findLargestFree(chunk);
 
 			debug_printf("[HEAP] Shrunk chunk @ %p upwards to %u blocks.", (void*)chunk, chunk->blocks);
 		}
@@ -346,8 +418,8 @@ static void optimizeChunk(chunk_t *chunk)
 			size_t nextBlock = (uintptr_t)next / PMM_BLOCK_SIZE;
 			size_t blockDifference = nextBlock - currentBlock;
 
-			// Atleast one free block between allocations
-			if (blockDifference > 1)
+			// Free blocks between allocations
+			if (blockDifference > GROUP_SIZE)
 			{
 				// Space for a new chunk header
 				if ((uintptr_t)next - (nextBlock * PMM_BLOCK_SIZE) >= sizeof(chunk_t))
@@ -377,6 +449,12 @@ static void optimizeChunk(chunk_t *chunk)
 					currentChunk->next = newChunk;
 					currentChunk->blocks = (currentPtr - (uintptr_t)currentChunk) / PMM_BLOCK_SIZE + 1;
 
+					// We don't know the largest free memory area anymore
+					if ((uintptr_t)next - currentPtr == currentChunk->largestFree)
+						findLargestFree(currentChunk);
+
+					findLargestFree(newChunk);
+
 					// Cut allocation chain
 					current->next = NULL;
 					next->prev = NULL;
@@ -404,12 +482,19 @@ static void optimizeChunk(chunk_t *chunk)
 		uintptr_t last = allocEnd(current);
 		uintptr_t remBlocks = (end - last) / PMM_BLOCK_SIZE;
 
-		if (remBlocks)
+		// Are there free blocks
+		if (remBlocks >= GROUP_SIZE)
+		{
 			debug_printf("[HEAP] Shrunk chunk %p downwards %u blocks", (void*)currentChunk, remBlocks);
 
-		// Delete redundant blocks
-		while (remBlocks--)
-			pmmFree((void*)((uintptr_t)chunk + --currentChunk->blocks * PMM_BLOCK_SIZE));
+			// Delete redundant blocks
+			while (remBlocks--)
+				pmmFree((void*)((uintptr_t)currentChunk + --currentChunk->blocks * PMM_BLOCK_SIZE));
+		
+			// We don't know the largest free memory area anymore
+			if (end - last == currentChunk->largestFree)
+				findLargestFree(currentChunk);
+		}
 	}
 }
 
@@ -425,7 +510,10 @@ static allocation_t* createAllocation(chunk_t *chunk, size_t size)
 	allocation_t *before = NULL;
 	allocation_t *after = NULL;
 
-	// Chunk is empty
+	size_t newLargest = 0;
+	bool checkLargest = false;
+
+	// Chunk is empty and wasn't only used for a few allocations
 	if (!chunk->table)
 	{
 		// Allocate directly after the chunk header
@@ -433,33 +521,63 @@ static allocation_t* createAllocation(chunk_t *chunk, size_t size)
 		alloc = (allocation_t*)addr;
 
 		chunk->table = alloc;
+
+		chunk->largestFree = (chunk->blocks * PMM_BLOCK_SIZE) - ((uintptr_t)alloc + sizeof(allocation_t) + size - (uintptr_t)chunk);
 	}
 	else
 	{
 		allocation_t *current = chunk->table;
 		allocation_t *next = current->next;
+		
+		size_t available = (uintptr_t)current - (uintptr_t)chunk - sizeof(chunk_t);
+		newLargest = available;
 
-		// Check space between allocations
-		while(next)
+		if (available >= size + sizeof(allocation_t))
 		{
-			uintptr_t end = allocEnd(current);
-			size_t available = (uintptr_t)next - end;
+			// Create allocation
+			alloc = (allocation_t*)((uintptr_t)chunk + sizeof(chunk_t));
+			after = current;
+			chunk->table = alloc;
+			
+			if (available == chunk->largestFree)
+				checkLargest = true;
 
-			if (available >= size + sizeof(allocation_t))
-			{
-				// Create allocation
-				alloc = (allocation_t*)end;
-				before = current;
-				after = next;
-				break;
-			}
-
-			// Move to next allocation
-			current = next;
-			next = current->next;
+			newLargest -= sizeof(allocation_t) + size;
 		}
 
-		if (!alloc)
+		if (checkLargest || !alloc)
+		{
+			// Check space between allocations
+			while(next && (checkLargest || !alloc))
+			{
+				uintptr_t end = allocEnd(current);
+				available = (uintptr_t)next - end;
+
+				if (!alloc && available >= size + sizeof(allocation_t))
+				{
+					// Create allocation
+					alloc = (allocation_t*)end;
+					before = current;
+					after = next;
+
+					if (available != chunk->largestFree)
+						break;
+
+					available -= sizeof(allocation_t) + size;
+
+					checkLargest = true;
+				}
+
+				if (available > newLargest)
+					newLargest = available;
+
+				// Move to next allocation
+				current = next;
+				next = current->next;
+			}
+		}
+
+		if (!alloc || checkLargest)
 		{
 			// Check space from the last allocation to the end of the chunk
 			uintptr_t end = chunkEnd(chunk);
@@ -467,12 +585,23 @@ static allocation_t* createAllocation(chunk_t *chunk, size_t size)
 		
 			size_t available = end - last;
 
-			if (available >= size + sizeof(allocation_t))
+			if (!alloc && available >= size + sizeof(allocation_t))
 			{
 				alloc = (allocation_t*)last;
 				before = current;
+
+				if (available == chunk->largestFree)
+					checkLargest = true;
+
+				available -= sizeof(allocation_t) + size;
 			}
+
+			if (available > newLargest)
+				newLargest = available;
 		}
+
+		if (checkLargest)
+			chunk->largestFree = newLargest;
 	}
 
 	if (!alloc) // No space in chunk
@@ -497,9 +626,31 @@ static void removeAllocation(chunk_t *chunk, allocation_t *allocation)
 	if (chunk->table == allocation)
 		chunk->table = allocation->next;
 
+	uintptr_t next = 0;
+	uintptr_t prev = 0;
+
 	// Relink allocations before and after the deleted one
-	if (allocation->next) allocation->next->prev = allocation->prev;
-	if (allocation->prev) allocation->prev->next = allocation->next;
+	if (allocation->next)
+	{
+		allocation->next->prev = allocation->prev;
+		next = (uintptr_t)allocation->next;
+	}
+
+	if (allocation->prev)
+	{
+		allocation->prev->next = allocation->next;
+		prev = allocEnd(allocation->prev);
+	}
+
+	if (!next)
+		next = chunkEnd(chunk);
+
+	if (!prev)
+		prev = (uintptr_t)chunk + sizeof(chunk_t);
+
+	// Check if largest free area changed
+	if (next - prev > chunk->largestFree)
+		chunk->largestFree = next - prev;
 
 	// Possibly optimize the chunk size
 	optimizeChunk(chunk);
@@ -511,6 +662,9 @@ static allocation_t* allocate(size_t size)
 {
 	for (chunk_t *chunk = heap; chunk != NULL; chunk = chunk->next)
 	{
+		if (chunk->largestFree < size)
+			continue;
+
 		allocation_t *alloc = createAllocation(chunk, size);
 		if (alloc)
 			return alloc;
