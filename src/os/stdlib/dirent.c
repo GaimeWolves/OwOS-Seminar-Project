@@ -5,8 +5,11 @@
 //------------------------------------------------------------------------------------------
 
 #include <errno.h>
+#include <string.h>
 
 #include "../include/vfs/vfs.h"
+
+extern char cwd[256];
 
 //------------------------------------------------------------------------------------------
 //				Public function implementations
@@ -58,6 +61,26 @@ int rmdir(const char *dirname)
 
 	// Try to remove it
 	return 0;
+}
+
+char* getcwd(char* buf, size_t bufsz)
+{
+	//The buffer needs to be valid
+	if(!buf || !bufsz)
+		return NULL;
+	//Get length of the cwd
+	size_t cwdlen = strlen(cwd);
+	//The buffer needs to be big enough
+	if(cwdlen >= bufsz)
+	{
+		errno = ENOMEM;
+		return NULL;
+	}
+	//Copy path
+	memcpy(buf, cwd, cwdlen);
+	buf[cwdlen] = 0;
+
+	return buf;
 }
 
 DIR *opendir(const char *dirname)

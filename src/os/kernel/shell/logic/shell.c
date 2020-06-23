@@ -182,6 +182,10 @@ void shell_init(void)
 	shell_frame_init();
 	shell_in_stream_init();
 	shell_out_stream_init();
+
+	//We start at the root dir
+	cwd[0] = '/';
+	cwd[1] = 0;
 }
 
 noreturn void shell_start(void)

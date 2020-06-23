@@ -14,6 +14,9 @@
 #include "../include/vfs/vfs.h"
 #include "../include/memory/heap.h"
 
+//Needed for relative paths
+#include <dirent.h>
+
 //------------------------------------------------------------------------------------------
 //				Constants
 //------------------------------------------------------------------------------------------
@@ -140,6 +143,9 @@ static char printf_parse_precision(printf_conv_t *conversion);
 // Conversion struct prepared by specific function and passed to generic printf/scanf
 static void generic_printf(printf_conv_t *conversion);
 static void generic_scanf(scanf_conv_t * conversion);
+
+//Resolves relative paths
+static char* resolve_path(const char* path);
 
 //------------------------------------------------------------------------------------------
 //				Private function implementations
@@ -1214,6 +1220,35 @@ static void generic_printf(printf_conv_t *conversion)
         conversion->putc('\0', conversion);
 }
 
+static char* resolve_path(const char* path)
+{
+	//Test if the path is relative
+	if(path[0] == '/')
+		//If not we don't need to resolve anything
+		return NULL;
+
+	//Get cwd and path lengths
+	char cwdbuf[256];
+	if(!getcwd(cwdbuf, 256))
+	{
+		//this should not happen
+		//FIXME: HANDLE ERROR
+		return NULL;
+	}
+	size_t cwdlen = strlen(cwdbuf);
+	size_t pathlen = strlen(path);
+
+	//Get new buffer
+	char* path_buffer = malloc(cwdlen + pathlen + 1);
+	//Setup new buffer
+	memcpy(path_buffer, cwdbuf, cwdlen);
+	memcpy(&path_buffer[cwdlen], path, pathlen);
+	path_buffer[cwdlen + pathlen] = 0;
+
+	//Return new buffer
+	return path_buffer;
+}
+
 //------------------------------------------------------------------------------------------
 //				Public function implementations
 //------------------------------------------------------------------------------------------
@@ -1226,9 +1261,13 @@ FILE *fopen(const char *filename, const char *mode)
 		return NULL;
 	}
 
+	char* path = resolve_path(filename);
+
 	FILE *file;
-	if (!(file = vfsOpen(filename, mode)))
+	if (!(file = vfsOpen(path ? path : filename, mode)))
 		errno = ENOENT;
+
+	free(path);
 
 	return file;
 }
@@ -1247,11 +1286,15 @@ FILE *freopen(const char *filename, const char *mode, FILE *stream)
 		return NULL;
 	}
 
+	char* path = resolve_path(filename);
+
 	FILE *file;
-	if (!(file = vfsReopen(filename, mode, stream)))
+	if (!(file = vfsReopen(path ? path : filename, mode, stream)))
 		errno = ENOENT;
 
-	return vfsReopen(filename, mode, stream);
+	free(path);
+
+	return file;
 }
 
 int fclose(FILE *stream)
@@ -1750,11 +1793,15 @@ int remove(const char *fname)
 		return EOF;
 	}
 
-	if (vfsRemove(fname))
+	char* path = resolve_path(fname);
+
+	if (vfsRemove(path ? path : fname))
 	{
 		errno = ENOENT;
 		return EOF;
 	}
+
+	free(path);
 
 	return 0;
 }
@@ -1767,7 +1814,10 @@ int rename(const char *old_filename, const char *new_filename)
 		return EOF;
 	}
 
-	return vfsRename(old_filename, new_filename);
+	char* path_old = resolve_path(old_filename);
+	char* path_new = resolve_path(new_filename);
+
+	return vfsRename(path_old ? path_old : old_filename, path_new ? path_new : new_filename);
 }
 
 FILE *tmpfile()
