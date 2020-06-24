@@ -1021,13 +1021,13 @@ static void generic_printf(printf_conv_t *conversion)
 						padding = size > (size_t)conversion->precision ? 0 : conversion->precision - size;
 
 					// If precision and value both equal 0 nothing is printed
-					if (conversion->precision > 0 || repr[0] != '0')
+					if (!(conversion->flags & PRINTF_FLAG_PRECISION) || conversion->precision > 0 || repr[0] != '0')
 						conversion->minimal_width -= size + padding;
 
 					write_padding(conversion, false, fill);
 
 					// Only print if precision and representation not zero
-					if (conversion->precision > 0 || repr[0] != '0')
+					if (!(conversion->flags & PRINTF_FLAG_PRECISION) || conversion->precision > 0 || repr[0] != '0')
 					{
 						if (sign)
 							write_char(conversion, sign);
@@ -1056,7 +1056,7 @@ static void generic_printf(printf_conv_t *conversion)
 						padding = size > (size_t)conversion->precision ? 0 : conversion->precision - size;
 
 					// If precision and value both equal 0 nothing is printed
-					if (conversion->precision > 0 || repr[0] != '0')
+					if (!(conversion->flags & PRINTF_FLAG_PRECISION) || conversion->precision > 0 || repr[0] != '0')
 						conversion->minimal_width -= size + padding;
 
 					// Alternative representation reqires at least one leading zero
@@ -1070,7 +1070,7 @@ static void generic_printf(printf_conv_t *conversion)
 						write_char(conversion, '0');
 					
 					// Only print if precision and representation not zero
-					if (conversion->precision > 0 || repr[0] != '0')
+					if (!(conversion->flags & PRINTF_FLAG_PRECISION) || conversion->precision > 0 || repr[0] != '0')
 					{
 						write_char_seq(conversion, '0', padding);
 						write_string(conversion, repr, size);
@@ -1100,7 +1100,7 @@ static void generic_printf(printf_conv_t *conversion)
 					else
 						padding = size > (size_t)conversion->precision ? 0 : conversion->precision - size;
 
-					if (conversion->precision > 0 || repr[0] != '0')
+					if (!(conversion->flags & PRINTF_FLAG_PRECISION) || conversion->precision > 0 || repr[0] != '0')
 						conversion->minimal_width -= size + padding;
 
 					if (conversion->flags & PRINTF_FLAG_ALT && repr[0] != '0')
@@ -1116,7 +1116,7 @@ static void generic_printf(printf_conv_t *conversion)
 					}
 
 					// If precision and value both equal 0 nothing is printed
-					if (conversion->precision > 0 || repr[0] != '0')
+					if (!(conversion->flags & PRINTF_FLAG_PRECISION) || conversion->precision > 0 || repr[0] != '0')
 					{
 						write_char_seq(conversion, '0', padding);
 						write_string(conversion, repr, size);

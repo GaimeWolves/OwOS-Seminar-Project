@@ -1,6 +1,7 @@
 #include <stdlib.h>
 //Stdlib includes
 #include <ctype.h>
+#include <mt19937.h>
 //Kernel includes
 #include "../../include/memory/heap.h"
 
@@ -210,4 +211,15 @@ void* calloc(size_t nmemb, size_t size)
 void* realloc(void *ptr, size_t size)
 {
 	return krealloc(ptr, size);
+}
+
+void srand(unsigned seed)
+{
+    mt19937_seed((uint32_t)seed);
+}
+
+int rand()
+{
+    // Force signed number between 0 and RAND_MAX
+    return (int)(mt19937_rand() & 0x7FFFFFFF);
 }
