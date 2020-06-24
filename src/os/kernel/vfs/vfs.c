@@ -143,6 +143,17 @@ static vfs_node_t *findfile_helper(vfs_node_t *node, char *path)
 	// Go to next subdirectory
 	rmPathDirectory(path);
 
+	// Check for special characters
+	if (strcmp(file, "..") == 0)
+	{
+		kfree(file);
+		return findfile_helper(node->parent, path);
+	}
+	if(strcmp(file, ".") == 0)
+	{
+		kfree(file);
+		return findfile_helper(node, path);
+	}
 	// Check if node is already in memory (recursively traverse node tree)
 	for (vfs_node_t *child = node->child; child; child = child->next)
 	{
