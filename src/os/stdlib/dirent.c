@@ -8,8 +8,7 @@
 #include <string.h>
 
 #include "../include/vfs/vfs.h"
-
-extern char cwd[256];
+#include "../include/shell/cwdutils.h"
 
 //------------------------------------------------------------------------------------------
 //				Public function implementations

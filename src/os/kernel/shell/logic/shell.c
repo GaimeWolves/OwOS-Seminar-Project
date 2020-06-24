@@ -210,19 +210,20 @@ static int shell_handle_intern_program(FILE* in_stream, FILE* out_stream, FILE* 
 			vfsFlush(err_stream);
 			return -1;
 		}
-		//Check if the dir exists
-		DIR* dir = vfsOpendir(argv[1]);
-		if(!dir)
-			return -1;
-		vfsClosedir(dir);
-		//Set new cwd
-		size_t pathlen = strlen(argv[1]);
-		if(pathlen >= 256)
-			return -1;
-		memcpy(cwd, argv[1], pathlen);
-		cwd[pathlen] = 0;
 
-		return 0;
+		int returnCode = change_cwd(argv[1]);
+		if(returnCode == -2) //No such file or directory
+		{
+			vfsWrite(err_stream, "No such file or directory", 25);
+			vfsFlush(err_stream);
+		}
+		else if(returnCode == -3) //Path too long
+		{
+			vfsWrite(err_stream, "The path was too long", 21);
+			vfsFlush(err_stream);
+		}
+		
+		return returnCode;
 	}
 	if(memcmp(exe, "pwd", 3) == 0)
 	{
@@ -253,8 +254,7 @@ void shell_init(void)
 	shell_out_stream_init();
 
 	//We start at the root dir
-	cwd[0] = '/';
-	cwd[1] = 0;
+	change_cwd("/");
 }
 
 noreturn void shell_start(void)

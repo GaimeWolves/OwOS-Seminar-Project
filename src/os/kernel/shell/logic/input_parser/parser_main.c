@@ -2,10 +2,11 @@
 
 #include <string.h>
 
-#include <shell/shell.h>
 #include <memory/heap.h>
+#include <shell/shell.h>
 #include <shell/in_stream.h>
 #include <shell/out_stream.h>
+#include <shell/cwdutils.h>
 #include <vfs/vfs.h>
 
 //------------------------------------------------------------------------------------------
@@ -55,32 +56,25 @@ static inline __attribute__((always_inline)) int entry_count()
 
 static FILE* create_file_stream(const char* str, size_t size, char* mode)
 {
-	//Test if we have an absolute address
-	if(str[0] != '/')
-		size++;
-	//Copy string on heap
+	//Create a null-terminated copy
 	char* file_name = kmalloc(size + 1);
-	char* current = file_name;
-	//It should start with a /
-	if(str[0] != '/')
-	{
-		*current = '/';
-		current++;
-		size--;
-	}
-	//Copy the string
-	current[size] = 0;
-	memcpy(current, str, size);
+	memcpy(file_name, str, size);
+	file_name[size] = 0;
+	//Resolve path if it is relative
+	//Otherwise path is NULL
+	char* path = resolve_path(file_name);
+	//Free the copy
+	kfree(file_name);
 
 	//Copy mode
 	char* m = kmalloc(strlen(mode) + 1);
 	strcpy(m, mode);
 
 	//Create the stream
-	FILE* file = vfsOpen(file_name, m);
+	FILE* file = vfsOpen(path ? path : str, m);
 
 	//Free memory
-	kfree(file_name);
+	kfree(path); //If path is NULL this just does nothing
 	kfree(m);
 
 	return file;
@@ -244,12 +238,7 @@ int input_parser(const char* buffer, size_t buffersz, char** executable_name, in
 		//Resolve the file with the pwd
 		if(strstr(*executable_name, "."))
 		{
-			size_t cwdlen = strlen(cwd);
-			char* newBuffer = kmalloc(cwdlen + first_arg->size + 1);
-
-			memcpy(newBuffer, cwd, cwdlen);
-			memcpy(&newBuffer[cwdlen], *executable_name, first_arg->size);
-			newBuffer[cwdlen + first_arg->size] = 0;
+			char* newBuffer = resolve_path(*executable_name);
 
 			kfree(*executable_name);
 			*executable_name = newBuffer;

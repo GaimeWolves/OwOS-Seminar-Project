@@ -13,9 +13,7 @@
 
 #include "../include/vfs/vfs.h"
 #include "../include/memory/heap.h"
-
-//Needed for relative paths
-#include <dirent.h>
+#include "../include/shell/cwdutils.h"
 
 //------------------------------------------------------------------------------------------
 //				Constants
@@ -143,9 +141,6 @@ static char printf_parse_precision(printf_conv_t *conversion);
 // Conversion struct prepared by specific function and passed to generic printf/scanf
 static void generic_printf(printf_conv_t *conversion);
 static void generic_scanf(scanf_conv_t * conversion);
-
-//Resolves relative paths
-static char* resolve_path(const char* path);
 
 //------------------------------------------------------------------------------------------
 //				Private function implementations
@@ -1218,35 +1213,6 @@ static void generic_printf(printf_conv_t *conversion)
 	// Terminate with null byte if sprintf was used
     if (bufsz && conversion->putc == (printf_putc_callback)str_putc)
         conversion->putc('\0', conversion);
-}
-
-static char* resolve_path(const char* path)
-{
-	//Test if the path is relative
-	if(path[0] == '/')
-		//If not we don't need to resolve anything
-		return NULL;
-
-	//Get cwd and path lengths
-	char cwdbuf[256];
-	if(!getcwd(cwdbuf, 256))
-	{
-		//this should not happen
-		//FIXME: HANDLE ERROR
-		return NULL;
-	}
-	size_t cwdlen = strlen(cwdbuf);
-	size_t pathlen = strlen(path);
-
-	//Get new buffer
-	char* path_buffer = malloc(cwdlen + pathlen + 1);
-	//Setup new buffer
-	memcpy(path_buffer, cwdbuf, cwdlen);
-	memcpy(&path_buffer[cwdlen], path, pathlen);
-	path_buffer[cwdlen + pathlen] = 0;
-
-	//Return new buffer
-	return path_buffer;
 }
 
 //------------------------------------------------------------------------------------------
