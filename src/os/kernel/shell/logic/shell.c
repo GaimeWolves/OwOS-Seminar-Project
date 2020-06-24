@@ -12,6 +12,7 @@
 
 #include <stdnoreturn.h>
 #include <stdbool.h>
+#include <string.h>
 
 //------------------------------------------------------------------------------------------
 //				Types
@@ -22,9 +23,20 @@
 //------------------------------------------------------------------------------------------
 static shell_state_t shell_state;
 
+static int returnCode = 0;
+
 static char* buffer;
 static size_t buffer_index;
 static size_t shell_line_index;
+
+//------------------------------------------------------------------------------------------
+//				Private Function Declaration
+//------------------------------------------------------------------------------------------
+static void shell_handle_input();
+static void shell_handle_input_normal_char(char c);
+static bool shell_handle_input_char(char c);
+static bool shell_check_intern_program(const char* name);
+static int shell_handle_intern_program(FILE* in_stream, FILE* out_stream, FILE* err_stream, const char* executable, int argc, char *argv[]);
 
 //------------------------------------------------------------------------------------------
 //				Private Function
@@ -52,10 +64,17 @@ static void shell_handle_input()
 
 	if(input_parser(buffer, buffer_index, &executable_name, &argc, &args, &in_stream, &del_in_stream, &out_stream, &del_out_stream, &err_stream, &del_err_stream) == 0)
 	{
-		FILE* exe = vfsOpen(executable_name, "r");
+		if(shell_check_intern_program(args[0]))
+		{
+			returnCode = shell_handle_intern_program(in_stream, out_stream, err_stream, args[0], argc, args);
+		}
+		else
+		{
+			FILE* exe = vfsOpen(executable_name, "r");
 
-		if(exe)
-			linker_main(in_stream, out_stream, err_stream, exe, argc, args);
+			if(exe)
+				returnCode = linker_main(in_stream, out_stream, err_stream, exe, argc, args);
+		}
 	}
 
 	if(del_in_stream)
@@ -172,6 +191,39 @@ static bool shell_handle_input_char(char c)
 	}
 
 	return ret;
+}
+
+static bool shell_check_intern_program(const char* exe)
+{
+	return
+		memcmp(exe, "cd", 2) == 0;
+}
+static int shell_handle_intern_program(FILE* in_stream, FILE* out_stream, FILE* err_stream, const char* exe, int argc, char *argv[])
+{
+	if(memcmp(exe, "cd", 2) == 0)
+	{
+		if(argc != 2)
+		{
+			vfsWrite(err_stream, "Wrong parameter count", 21);
+			vfsFlush(err_stream);
+			return -1;
+		}
+		//Check if the dir exists
+		DIR* dir = vfsOpendir(argv[1]);
+		if(!dir)
+			return -1;
+		vfsClosedir(dir);
+		//Set new cwd
+		size_t pathlen = strlen(argv[1]);
+		if(pathlen >= 256)
+			return -1;
+		memcpy(cwd, argv[1], pathlen);
+		cwd[pathlen] = 0;
+
+		return 0;
+	}
+
+	return -100;
 }
 
 //------------------------------------------------------------------------------------------
