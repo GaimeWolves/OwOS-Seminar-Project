@@ -196,7 +196,9 @@ static bool shell_handle_input_char(char c)
 static bool shell_check_intern_program(const char* exe)
 {
 	return
-		memcmp(exe, "cd", 2) == 0;
+		memcmp(exe, "cd", 2) == 0
+		|| memcmp(exe, "pwd", 3) == 0
+		|| memcmp(exe, "shutdown", 8) == 0;
 }
 static int shell_handle_intern_program(FILE* in_stream, FILE* out_stream, FILE* err_stream, const char* exe, int argc, char *argv[])
 {
@@ -221,6 +223,21 @@ static int shell_handle_intern_program(FILE* in_stream, FILE* out_stream, FILE* 
 		cwd[pathlen] = 0;
 
 		return 0;
+	}
+	if(memcmp(exe, "pwd", 3) == 0)
+	{
+		vfsWrite(out_stream, cwd, strlen(cwd));
+		vfsFlush(out_stream);
+
+		return 0;
+	}
+	if(memcmp(exe, "shutdown", 8) == 0)
+	{
+		//QEMU Shutdown
+		outw(0x604, 0x2000);
+
+		//This should not happen
+		return -1;
 	}
 
 	return -100;
