@@ -6,6 +6,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "../include/vfs/vfs.h"
 #include "../include/shell/cwdutils.h"
@@ -22,27 +23,35 @@ int mkdir(const char *dirname)
 		return EOF;
 	}
 
-	if (vfsMkdir(dirname))
+	char* path = resolve_path(dirname);
+
+	if (vfsMkdir(path ? path : dirname))
 	{
+		free(path);
 		errno = ENOSPC;
 		return EOF;
 	}
 
+	free(path);
 	return 0;
 }
 
 int rmdir(const char *dirname)
 {
+	errno = 0;
 	if (!dirname)
 	{
 		errno = ENOENT;
 		return EOF;
 	}
 
+	char* path = resolve_path(dirname);
+
 	// Check if path points to a directory
-	DIR *tmp = vfsOpendir(dirname);
+	DIR *tmp = vfsOpendir(path ? path : dirname);
 	if (!tmp)
 	{
+		free(path);
 		errno = ENOTDIR;
 		return EOF;
 	}
@@ -52,12 +61,20 @@ int rmdir(const char *dirname)
 
 	vfsClosedir(tmp);
 
-	if (vfsRemove(dirname))
+	if(errno != 0)
 	{
+		free(path);
+		return EOF;
+	}
+
+	if (vfsRemove(path ? path : dirname))
+	{
+		free(path);
 		errno = EEXIST;
 		return EOF;
 	}
 
+	free(path);
 	// Try to remove it
 	return 0;
 }
@@ -91,8 +108,12 @@ DIR *opendir(const char *dirname)
 	}
 
 	DIR *dir;
-	if (!(dir = vfsOpendir(dirname)))
+	char* path = resolve_path(dirname);
+
+	if (!(dir = vfsOpendir(path ? path : dirname)))
 		errno = ENOENT;
+
+	free(path);
 
 	return dir;
 }

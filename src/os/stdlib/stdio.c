@@ -1783,7 +1783,12 @@ int rename(const char *old_filename, const char *new_filename)
 	char* path_old = resolve_path(old_filename);
 	char* path_new = resolve_path(new_filename);
 
-	return vfsRename(path_old ? path_old : old_filename, path_new ? path_new : new_filename);
+	int returnCode = vfsRename(path_old ? path_old : old_filename, path_new ? path_new : new_filename);
+
+	free(path_old);
+	free(path_new);
+
+	return returnCode;
 }
 
 FILE *tmpfile()
