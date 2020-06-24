@@ -1,5 +1,7 @@
 #include "frame.h"
 
+#include <shell/cwdutils.h>
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
@@ -132,9 +134,17 @@ void shell_frame_goto_next_row(bool cursor)
 		refresh();
 	}
 }
+
+char shell_line_string[PATH_MAX_LENGTH + 4];
 char* shell_frame_get_shell_line_string(void)
 {
-	return "OwOS_Shell_0.0.1> ";
+	size_t cwdlen = strlen(cwd);
+	memcpy(shell_line_string, cwd, cwdlen);
+	shell_line_string[cwdlen + 0] = ' ';
+	shell_line_string[cwdlen + 1] = '>';
+	shell_line_string[cwdlen + 2] = ' ';
+	shell_line_string[cwdlen + 3] = 0;
+	return shell_line_string;
 }
 //------------------------------------------------------------------------------------------
 //				Public Function
