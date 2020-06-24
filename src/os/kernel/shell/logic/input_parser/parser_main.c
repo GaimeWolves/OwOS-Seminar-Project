@@ -240,21 +240,39 @@ int input_parser(const char* buffer, size_t buffersz, char** executable_name, in
 	//Check for non-absolute path
 	if((*executable_name)[0] != '/')
 	{
-		char* newBuffer = kmalloc(first_arg->size + 1 + 9);
-		newBuffer[0] = '/';
-		newBuffer[1] = 'b';
-		newBuffer[2] = 'i';
-		newBuffer[3] = 'n';
-		newBuffer[4] = '/';
-		memcpy(&newBuffer[5], *executable_name, first_arg->size);
-		newBuffer[first_arg->size + 0 + 5] = '.';
-		newBuffer[first_arg->size + 1 + 5] = 'e';
-		newBuffer[first_arg->size + 2 + 5] = 'l';
-		newBuffer[first_arg->size + 3 + 5] = 'f';
-		newBuffer[first_arg->size + 4 + 5] = 0;
+		//If we have a . then this is a file
+		//Resolve the file with the pwd
+		if(strstr(*executable_name, "."))
+		{
+			size_t cwdlen = strlen(cwd);
+			char* newBuffer = kmalloc(cwdlen + first_arg->size + 1);
 
-		kfree(*executable_name);
-		*executable_name = newBuffer;
+			memcpy(newBuffer, cwd, cwdlen);
+			memcpy(&newBuffer[cwdlen], *executable_name, first_arg->size);
+			newBuffer[cwdlen + first_arg->size] = 0;
+
+			kfree(*executable_name);
+			*executable_name = newBuffer;
+		}
+		//Otherwise this should be interpreted as a application which is in the /bin/ folder
+		else
+		{
+			char* newBuffer = kmalloc(first_arg->size + 1 + 9);
+			newBuffer[0] = '/';
+			newBuffer[1] = 'b';
+			newBuffer[2] = 'i';
+			newBuffer[3] = 'n';
+			newBuffer[4] = '/';
+			memcpy(&newBuffer[5], *executable_name, first_arg->size);
+			newBuffer[first_arg->size + 0 + 5] = '.';
+			newBuffer[first_arg->size + 1 + 5] = 'e';
+			newBuffer[first_arg->size + 2 + 5] = 'l';
+			newBuffer[first_arg->size + 3 + 5] = 'f';
+			newBuffer[first_arg->size + 4 + 5] = 0;
+
+			kfree(*executable_name);
+			*executable_name = newBuffer;
+		}
 	}
 
 	//Handle stream args
