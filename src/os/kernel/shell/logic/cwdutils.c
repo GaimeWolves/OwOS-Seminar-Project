@@ -13,9 +13,15 @@
 char cwd[PATH_MAX_LENGTH];
 
 //------------------------------------------------------------------------------------------
+//				Private Function declaration
+//------------------------------------------------------------------------------------------
+static int check_and_copy(char* path);
+static char* normalizePath(char* path);
+
+//------------------------------------------------------------------------------------------
 //				Private Function
 //------------------------------------------------------------------------------------------
-static int check_and_copy(const char* path)
+static int check_and_copy(char* path)
 {
 	//Check if the dir exists
 	DIR* dir = vfsOpendir(path);
@@ -34,7 +40,47 @@ static int check_and_copy(const char* path)
 	//We should end with a null-terminator
 	cwd[pathlen] = 0;
 
+	//The dir is valid so normalize it
+	normalizePath(cwd);
+
 	return 0;
+}
+
+//Normalizes an absolute path
+static char* normalizePath(char* path)
+{
+	char* current;
+	size_t length = strlen(path);
+	while ((current = strstr(path, "/./")))
+	{
+		size_t index = (size_t)current - (size_t)path;
+		//Overwrite the given path part
+		//(length - index - 2) = size after /
+		//(+ 1) = copy with null-character
+		memmove(current, current + 2, length - index - 2 + 1);
+		length -= 2;
+	}
+	while ((current = strstr(path, "/../")))
+	{
+		size_t index = (size_t)current - (size_t)path;
+		//Search for the parent directory
+		char* parent = current - 1;
+		while(parent >= path)
+		{
+			if(*parent == '/')
+				break;
+			parent--;
+		}
+		if(parent == path - 1)
+			parent = current;
+		//Overwrite the given path part
+		//(length - index - 3) = size after /
+		//(+ 1) = copy with null-character
+		memmove(parent, current + 3, length - index - 3 + 1);
+		length -= (current + 3) - parent;
+	}
+
+	return path;
 }
 
 //------------------------------------------------------------------------------------------
