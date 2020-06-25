@@ -56,8 +56,16 @@ int rmdir(const char *dirname)
 		return EOF;
 	}
 
-	if (vfsReaddir(tmp))
-		errno = ENOTEMPTY;
+	dirent *entry = NULL;
+	while((entry = vfsReaddir(tmp)))
+	{
+		// The entry is neither . nor .. -> Directory is not empty
+		if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0)
+		{
+			errno = ENOTEMPTY;
+			break;
+		}
+	}
 
 	vfsClosedir(tmp);
 

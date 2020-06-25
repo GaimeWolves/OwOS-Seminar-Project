@@ -883,11 +883,18 @@ int vfsRemove(const char *path)
 	{
 		// Try to read a directory entry
 		DIR *dir = vfsOpendir(path);
-		if (vfsReaddir(dir)) // Returns dirent on success
+		dirent *entry = NULL;
+
+		while((entry = vfsReaddir(dir)))
 		{
-			vfsClosedir(dir);
-			return EOF;
+			// The entry is neither . nor .. -> Directory is not empty
+			if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0)
+			{
+				vfsClosedir(dir);
+				return EOF;
+			}
 		}
+
 		vfsClosedir(dir);
 	}
 
