@@ -6,10 +6,6 @@
 #include "../../include/keyboard.h"
 #include "../../include/vfs/vfs.h"
 
-FILE* in_stream;
-FILE* file;
-char* buffer;
-
 enum Mode
 {
 	Insert,
@@ -18,13 +14,38 @@ enum Mode
 	Command,
 };
 
+typedef struct row {
+	size_t len;
+	char* chars;
+} row;
+
 enum Mode mode;
+FILE* in_stream;
+FILE* file;
+size_t numrows;
+size_t cx, cy;
+row* rows;
+
+void addRow(char* s, size_t len) {
+	rows = realloc(rows, sizeof(row) * (numrows+1));
+	rows[numrows].len = len;
+	rows[numrows].chars = malloc(len+1);
+	memcpy(rows[numrows].chars, s, len);
+	rows[numrows].chars[len] = '\0';
+	numrows++;
+}
 
 void refreshScreen() {
-	for (int y = 0; y < 25; y++) {
-		for (int x = 0; x < 80; x++) {
-			char c = buffer[y*80 + x];
-			addchr(x, y, c ? c : ' ');
+	clrscr();
+	/* for (int y = 0; y < 25; y++) { */
+	/* 	for (int x = 0; x < 80; x++) { */
+	/* 		char c = buffer[y*80 + x]; */
+	/* 		addchr(x, y, c ? c : ' '); */
+	/* 	} */
+	/* } */
+	for (size_t i = 0; i < numrows; i++) {
+		for (size_t j = 0; j < rows[i].len; j++) {
+			addchr(j, i*80, rows[i].chars[j]);
 		}
 	}
 	refresh();
@@ -37,7 +58,7 @@ void handleKeypress() {
 		if (c == KEY_ESCAPE) {
 			mode = Normal;
 		} else {
-			addchr(10, 10, c);
+			//addchr(10, 10, c);
 		}
 	}
 	else if (mode == Normal) {
@@ -51,7 +72,7 @@ void handleKeypress() {
 
 int readFile(char* filename) {
 	FILE* file = fopen(filename, "r");
-	buffer = malloc(2001);
+	char* buffer = malloc(2001);
 	memset(buffer, 0, 2001);
 	size_t read;
 	while(!feof(file)) {
@@ -60,13 +81,21 @@ int readFile(char* filename) {
 			{
 				if(ferror(file))
 				{
-					//Print error with file name
 					perror(file->file_desc->name);
 					return -1;
 				}
 			}
 		}
 	}
+	
+	// read buffer line by line
+	for (size_t i = 0, last = 0; i < read && buffer[i] != 0; i++) {
+		if (buffer[i] == '\n') {
+			addRow(buffer+last, i-last);
+			last = i;
+		}
+	}
+	free(buffer);
 	return 0;
 }
 
@@ -75,8 +104,6 @@ int main(int argc, char* argv[])
 	if (readFile(argv[1]) != 0) {
 		return -1;
 	}
-	clrscr();
-	refresh();
 	mode = Normal;
 	set_color(FOREGROUND_WHITE, BACKGROUND_BLACK);
 	in_stream = shell_in_stream_get();
