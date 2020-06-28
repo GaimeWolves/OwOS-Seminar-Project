@@ -35,15 +35,21 @@ void addRow(char* s, size_t len) {
 
 void refreshScreen() {
 	clrscr();
-	/* for (int y = 0; y < 25; y++) { */
-	/* 	for (int x = 0; x < 80; x++) { */
-	/* 		char c = buffer[y*80 + x]; */
-	/* 		addchr(x, y, c ? c : ' '); */
-	/* 	} */
-	/* } */
+	size_t digits = 0;
+	for (size_t buf = numrows; buf; buf /= 10, digits++);
+	for (size_t i = 1; i < 25; i++) {
+		if (i > numrows) {
+			addchr(digits-1, i-1, '~');
+		}
+		else {
+			for (size_t x = i, n = 0; x; x /= 10, n++) {
+				addchr(digits-n-1, i-1, (x%10)+'0');
+			}
+		}
+	}
 	for (size_t i = 0; i < numrows; i++) {
 		for (size_t j = 0; j < rows[i].len; j++) {
-			addchr(j, i, rows[i].chars[j]);
+			addchr(digits+j+1, i, rows[i].chars[j]);
 		}
 	}
 	refresh();
