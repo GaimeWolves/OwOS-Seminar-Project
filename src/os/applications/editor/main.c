@@ -45,7 +45,7 @@ void refreshScreen() {
 	/* } */
 	for (size_t i = 0; i < numrows; i++) {
 		for (size_t j = 0; j < rows[i].len; j++) {
-			addchr(j, i*80, rows[i].chars[j]);
+			addchr(j, i, rows[i].chars[j]);
 		}
 	}
 	refresh();
