@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../include/shell/in_stream.h"
 #include "../../include/display/cells.h"
 #include "../../include/keyboard.h"
 #include "../../include/vfs/vfs.h"
@@ -20,7 +19,6 @@ typedef struct row {
 } row;
 
 enum Mode mode;
-FILE* in_stream;
 FILE* file;
 size_t numrows;
 size_t cx, cy;
@@ -53,7 +51,7 @@ void refreshScreen() {
 
 void handleKeypress() {
 	char c;
-	while(vfsRead(in_stream, &c, 1) == 0);
+	while(fread(&c, 1, 1, stdin) == 0);
 	if (mode == Insert) {
 		if (c == KEY_ESCAPE) {
 			mode = Normal;
@@ -106,7 +104,6 @@ int main(int argc, char* argv[])
 	}
 	mode = Normal;
 	set_color(FOREGROUND_WHITE, BACKGROUND_BLACK);
-	in_stream = shell_in_stream_get();
 	while (true) {
 		refreshScreen();
 		handleKeypress();
