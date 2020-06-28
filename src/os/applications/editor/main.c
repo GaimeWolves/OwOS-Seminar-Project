@@ -92,7 +92,7 @@ int readFile(char* filename) {
 	for (size_t i = 0, last = 0; i < read && buffer[i] != 0; i++) {
 		if (buffer[i] == '\n') {
 			addRow(buffer+last, i-last);
-			last = i;
+			last = i+1;
 		}
 	}
 	free(buffer);
