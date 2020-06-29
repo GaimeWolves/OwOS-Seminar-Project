@@ -123,7 +123,7 @@ void handleKeypress() {
 			mode = Normal;
 		} else if (c == 8) {
 			backspace();
-		} else {
+		} else if (c != 0) {
 			insertChar(c);
 		}
 	}
