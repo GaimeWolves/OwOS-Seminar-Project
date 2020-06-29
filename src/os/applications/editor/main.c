@@ -66,6 +66,12 @@ void refreshScreen() {
 	addstr(0, 23, filename);
 	addstr(0, 24, modes[mode]);
 
+	addchr(78, 23, '0');
+	for (int x = ((float)(rowoff+cy)/numrows)*100, n = 0; x; x /= 10, n++) {
+		addchr(78-n, 23, (x%10)+'0');
+	}
+	addchr(79, 23, '%');
+
 	for (int i = 1; i <= 23; i++) {
 		if (rowoff+i > numrows) {
 			addchr(linumWidth-1, i-1, '~');
