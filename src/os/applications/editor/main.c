@@ -14,15 +14,40 @@ enum Mode
 };
 
 typedef struct row {
-	size_t len;
+	int len;
 	char* chars;
 } row;
 
 enum Mode mode;
 FILE* file;
-size_t numrows;
-size_t cx, cy;
+int numrows;
+int cx, cy;
+int rowoff;
 row* rows;
+int linumWidth = 0;
+
+void setCursor(int x, int y) {
+	if (x > linumWidth+rows[rowoff+cy].len) {
+		x = linumWidth+rows[rowoff+cy].len;
+	}
+	if (x < linumWidth+1) {
+		x = linumWidth+1;
+	}
+	if (y > 25) {
+		y = 25;
+		rowoff++;
+	}
+	else if (y > numrows-1) {
+		y = numrows-1;
+	}
+	else if (y < 0) {
+		y = 0;
+		if (rowoff > 0)
+			rowoff--;
+	}
+	cx = x;
+	cy = y;
+}
 
 void addRow(char* s, size_t len) {
 	rows = realloc(rows, sizeof(row) * (numrows+1));
@@ -52,6 +77,7 @@ void refreshScreen() {
 			addchr(digits+j+1, i, rows[i].chars[j]);
 		}
 	}
+	move(cx, cy);
 	refresh();
 }
 
@@ -69,6 +95,18 @@ void handleKeypress() {
 		switch(c) {
 			case 'i':
 				mode = Insert;
+				break;
+			case 'j':
+				setCursor(cx, cy+1);
+				break;
+			case 'k':
+				setCursor(cx, cy-1);
+				break;
+			case 'h':
+				setCursor(cx-1, cy);
+				break;
+			case 'l':
+				setCursor(cx+1, cy);
 				break;
 		}
 	}
@@ -113,6 +151,8 @@ int main(int argc, char* argv[])
 	}
 	mode = Normal;
 	set_color(FOREGROUND_WHITE, BACKGROUND_BLACK);
+	for (size_t buf = numrows; buf; buf /= 10, linumWidth++);
+	cx = linumWidth+1;
 	while (true) {
 		refreshScreen();
 		handleKeypress();
