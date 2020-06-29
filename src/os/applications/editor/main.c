@@ -90,6 +90,9 @@ void insertChar(char c) {
 
 void deleteChar(int i) {
 	row* cur = &rows[rowoff+cy];
+	if (i > cur->len || i < 1) {
+		return;
+	}
 	memmove(cur->chars+i-1, cur->chars+i, cur->len-i+1);
 	cur->len--;
 	cur->chars = realloc(cur->chars, cur->len-1);
@@ -128,6 +131,9 @@ void handleKeypress() {
 				break;
 			case 'l':
 				setCursor(cx+1, cy);
+				break;
+			case 'x':
+				deleteChar(cx);
 				break;
 		}
 	}
