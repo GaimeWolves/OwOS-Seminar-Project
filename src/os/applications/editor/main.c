@@ -27,11 +27,11 @@ row* rows;
 int linumWidth = 0;
 
 void setCursor(int x, int y) {
-	if (x > linumWidth+rows[rowoff+cy].len) {
-		x = linumWidth+rows[rowoff+cy].len;
+	if (x > rows[rowoff+cy].len) {
+		x = rows[rowoff+cy].len;
 	}
-	if (x < linumWidth+1) {
-		x = linumWidth+1;
+	if (x < 1) {
+		x = 1;
 	}
 	if (y > 25) {
 		y = 25;
@@ -75,8 +75,17 @@ void refreshScreen() {
 			addchr(linumWidth+j+1, i, rows[rowoff+i].chars[j]);
 		}
 	}
-	move(cx, cy);
+	move(cx+linumWidth, cy);
 	refresh();
+}
+
+void insertChar(char c) {
+	row* cur = &rows[rowoff+cy];
+	cur->chars = realloc(cur->chars, cur->len+1);
+	memmove(cur->chars+cx, cur->chars+cx-1, cur->len-cx+1);
+	cur->len++;
+	cur->chars[cx-1] = c;
+	cx++;
 }
 
 void handleKeypress() {
@@ -86,7 +95,7 @@ void handleKeypress() {
 		if (c == KEY_ESCAPE) {
 			mode = Normal;
 		} else {
-			//addchr(10, 10, c);
+			insertChar(c);
 		}
 	}
 	else if (mode == Normal) {
@@ -150,7 +159,7 @@ int main(int argc, char* argv[])
 	mode = Normal;
 	set_color(FOREGROUND_WHITE, BACKGROUND_BLACK);
 	for (size_t buf = numrows; buf; buf /= 10, linumWidth++);
-	cx = linumWidth+1;
+	cx = 1;
 	while (true) {
 		refreshScreen();
 		handleKeypress();
