@@ -88,12 +88,26 @@ void insertChar(char c) {
 	cx++;
 }
 
+void deleteChar(int i) {
+	row* cur = &rows[rowoff+cy];
+	memmove(cur->chars+i-1, cur->chars+i, cur->len-i+1);
+	cur->len--;
+	cur->chars = realloc(cur->chars, cur->len-1);
+}
+
+void backspace() {
+	deleteChar(cx-1);
+	cx--;
+}
+
 void handleKeypress() {
 	char c;
 	while(fread(&c, 1, 1, stdin) == 0);
 	if (mode == Insert) {
 		if (c == KEY_ESCAPE) {
 			mode = Normal;
+		} else if (c == 8) {
+			backspace();
 		} else {
 			insertChar(c);
 		}
