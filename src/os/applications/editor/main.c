@@ -147,6 +147,14 @@ void handleKeypress() {
 			case 'x':
 				deleteChar(cx);
 				break;
+			case 'a':
+				cx++;
+				mode = Insert;
+				break;
+			case 'A':
+				cx = rows[rowoff+cy].len + 1;
+				mode = Insert;
+				break;
 		}
 	}
 }
