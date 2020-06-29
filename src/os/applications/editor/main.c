@@ -77,10 +77,10 @@ void handleKeypress() {
 int readFile(char* filename) {
 	FILE* file = fopen(filename, "r");
 	char* buffer = malloc(2001);
-	memset(buffer, 0, 2001);
 	size_t read;
+	size_t off = 0;
 	while(!feof(file)) {
-		if((read = fread(buffer, sizeof(char), 2000, file))) {
+		if((read = fread(buffer+off, sizeof(char), 2000, file))) {
 			if(read != 2000)
 			{
 				if(ferror(file))
@@ -89,11 +89,14 @@ int readFile(char* filename) {
 					return -1;
 				}
 			}
+			off += read;
+			buffer = realloc(buffer, 2001+off);
 		}
 	}
+	buffer[off] = '\0';
 	
 	// read buffer line by line
-	for (size_t i = 0, last = 0; i < read && buffer[i] != 0; i++) {
+	for (size_t i = 0, last = 0; i < off && buffer[i] != 0; i++) {
 		if (buffer[i] == '\n') {
 			addRow(buffer+last, i-last);
 			last = i+1;
