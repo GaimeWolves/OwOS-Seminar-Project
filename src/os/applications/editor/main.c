@@ -60,21 +60,19 @@ void addRow(char* s, size_t len) {
 
 void refreshScreen() {
 	clrscr();
-	size_t digits = 0;
-	for (size_t buf = numrows; buf; buf /= 10, digits++);
-	for (size_t i = 1; i < 25; i++) {
-		if (i > numrows) {
-			addchr(digits-1, i-1, '~');
+	for (int i = 1; i <= 25; i++) {
+		if (rowoff+i > numrows) {
+			addchr(linumWidth-1, i-1, '~');
 		}
 		else {
-			for (size_t x = i, n = 0; x; x /= 10, n++) {
-				addchr(digits-n-1, i-1, (x%10)+'0');
+			for (int x = rowoff+i, n = 0; x; x /= 10, n++) {
+				addchr(linumWidth-n-1, i-1, (x%10)+'0');
 			}
 		}
 	}
-	for (size_t i = 0; i < numrows; i++) {
-		for (size_t j = 0; j < rows[i].len; j++) {
-			addchr(digits+j+1, i, rows[i].chars[j]);
+	for (int i = 0; i < numrows && i < 25; i++) {
+		for (int j = 0; rowoff+i < numrows && j < rows[rowoff+i].len && j < 80; j++) {
+			addchr(linumWidth+j+1, i, rows[rowoff+i].chars[j]);
 		}
 	}
 	move(cx, cy);
