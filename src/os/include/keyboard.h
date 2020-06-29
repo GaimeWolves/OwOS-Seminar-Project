@@ -83,6 +83,8 @@
 #define KEY_HOME          0x47
 #define KEY_KP_8          0x48             //keypad up     arrow
 #define KEY_PAGEUP        0x49
+#define KEY_KP_4          0x4b             //keypad left   arrow
+#define KEY_KP_6          0x4d             //keypad right  arrow
 #define KEY_KP_2          0x50             //keypad down   arrow
 #define KEY_KP_3          0x51             //keypad page   down
 #define KEY_KP_0          0x52             //keypad insert key

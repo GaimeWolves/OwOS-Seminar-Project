@@ -16,8 +16,8 @@
 int gamestate = STATE_MENU;
 
 uint32_t score = 0;
-uint32_t hiscore = 0;
 uint32_t hiscores[MAX_SCORES] = { 0 };
+FILE *hiscoreFile;
 
 uint16_t snake[WIDTH * HEIGHT + 1] = { 0xFFFF };
 uint16_t apple = 0;
@@ -42,6 +42,14 @@ static void init()
 	disableCursor();
 	addSubhandler((pit_subhandler_t)render, 10);
 	addSubhandler((pit_subhandler_t)update, 10);
+
+	hiscoreFile = fopen("/scores.bin", "rb+");
+
+	// As rb+ does not create the file and wb+ discards the contents if the file
+	// already exists we first try to open it in rb+ and if it doesn't exist we
+	// create it with wb+
+	if (!hiscoreFile) // File does not exist
+		hiscoreFile = fopen("/scores.bin", "wb+");
 }
 
 static void exit()
@@ -49,6 +57,8 @@ static void exit()
 	enableCursor(0, 0);
 	remSubhandler((pit_subhandler_t)render);
 	remSubhandler((pit_subhandler_t)update);
+
+	fclose(hiscoreFile);
 }
 
 /*

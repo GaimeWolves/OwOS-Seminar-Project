@@ -1,6 +1,7 @@
 #include "logic.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "../../include/keyboard.h"
 
@@ -36,13 +37,38 @@ static void updateGameover();
 
 static void placeApple();
 
+static void readScores();
+static void updateScores();
+
 /*
  * Private method implementation
  */
 
+static void readScores()
+{
+	fseek(hiscoreFile, 0, SEEK_SET);
+	fread((void*)hiscores, sizeof(uint32_t), MAX_SCORES, hiscoreFile);
+}
+
+static void updateScores()
+{
+	fseek(hiscoreFile, 0, SEEK_SET);
+	for (int i = 0; i < MAX_SCORES; i++)
+	{
+		if (score >= hiscores[i])
+		{
+			memmove(&hiscores[i + 1], &hiscores[i], MAX_SCORES - 1 - i);
+			hiscores[i] = score;
+			fwrite((void*)hiscores, sizeof(uint32_t), MAX_SCORES, hiscoreFile);
+			return;
+		}
+	}
+}
 
 static void initGame()
 {
+	readScores();
+
 	for (int i = 0; i < WIDTH * HEIGHT; i++)
 		snake[i] = 0xFFFF;
 
@@ -53,7 +79,6 @@ static void initGame()
 
 	direction = LEFT;
 	score = 0;
-	hiscore = hiscores[0];
 }
 
 static void updateMenu()
@@ -73,10 +98,10 @@ static void updateMenu()
 	else
 		justPressed = false;
 
-	if (kbWasPressed(KEY_W) && selected == BUTTON_EXIT)
+	if (kbWasPressed(KEY_KP_8) && selected == BUTTON_EXIT)
 		selected = BUTTON_START;
 
-	if (kbWasPressed(KEY_S) && selected == BUTTON_START)
+	if (kbWasPressed(KEY_KP_2) && selected == BUTTON_START)
 		selected = BUTTON_EXIT;
 }
 
@@ -84,13 +109,13 @@ static void updateInGame()
 {
 	// Check keys
 
-	if (kbIsPressed(KEY_W) && lastDirection != DOWN)
+	if (kbIsPressed(KEY_KP_8) && lastDirection != DOWN)
 		direction = UP;
-	else if (kbIsPressed(KEY_S) && lastDirection != UP)
+	else if (kbIsPressed(KEY_KP_2) && lastDirection != UP)
 		direction = DOWN;
-	else if (kbIsPressed(KEY_A) && lastDirection != RIGHT)
+	else if (kbIsPressed(KEY_KP_4) && lastDirection != RIGHT)
 		direction = LEFT;
-	else if (kbIsPressed(KEY_D) && lastDirection != LEFT)
+	else if (kbIsPressed(KEY_KP_6) && lastDirection != LEFT)
 		direction = RIGHT;
 
 	if (elapsedTime % 200 != 0) // Every 200ms
@@ -147,7 +172,10 @@ static void updateInGame()
 	for (i = 1; i < WIDTH * HEIGHT && snake[i] != 0xFFFF; i++)
 	{
 		if (snake[i + 1] != 0xFFFF && snake[i] == newPos)
+		{
+			updateScores();
 			gamestate = STATE_GAMEOVER;
+		}
 
 		int current = snake[i];
 		snake[i] = lastPos;
@@ -218,10 +246,10 @@ static void updateGameover()
 		justPressed = false;
 	
 
-	if (kbWasPressed(KEY_W) && selected == BUTTON_EXIT)
+	if (kbWasPressed(KEY_KP_8) && selected == BUTTON_EXIT)
 		selected = BUTTON_START;
 
-	if (kbWasPressed(KEY_S) && selected == BUTTON_START)
+	if (kbWasPressed(KEY_KP_2) && selected == BUTTON_START)
 		selected = BUTTON_EXIT;
 }
 

@@ -76,7 +76,7 @@ static void renderInGame()
 	}
 
 	printw(1, 1, "SCORE %010u", score);
-	printw(66, 1, "HI %010u", hiscore);
+	printw(66, 1, "HI %010u", score > hiscores[0] ? score : hiscores[0]);
 
 	// Rainbow title
 	for (int i = 0; i < 8; i++)

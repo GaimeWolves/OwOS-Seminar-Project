@@ -2,6 +2,7 @@
 #define _GLOBAL_H
 
 #include <stdint.h>
+#include <stdio.h>
 
 // Gamefield sizes
 #define WIDTH 76
@@ -26,6 +27,8 @@ extern uint32_t score;
 extern uint32_t hiscore;
 
 extern uint32_t hiscores[];
+
+extern FILE *hiscoreFile;
 
 // Position of ingame objects
 extern uint16_t snake[];
