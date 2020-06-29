@@ -13,6 +13,8 @@ enum Mode
 	Command,
 };
 
+const char* modes[] = {"-- INSERT --", "", "-- REPLACE --", ":"};
+
 typedef struct row {
 	int len;
 	char* chars;
@@ -20,6 +22,7 @@ typedef struct row {
 
 enum Mode mode;
 FILE* file;
+char* filename;
 int numrows;
 int cx, cy;
 int rowoff;
@@ -33,8 +36,8 @@ void setCursor(int x, int y) {
 	if (x < 1) {
 		x = 1;
 	}
-	if (y > 25) {
-		y = 25;
+	if (y > 22) {
+		y = 22;
 		rowoff++;
 	}
 	else if (y > numrows-1) {
@@ -60,7 +63,10 @@ void addRow(char* s, size_t len) {
 
 void refreshScreen() {
 	clrscr();
-	for (int i = 1; i <= 25; i++) {
+	addstr(0, 23, filename);
+	addstr(0, 24, modes[mode]);
+
+	for (int i = 1; i <= 23; i++) {
 		if (rowoff+i > numrows) {
 			addchr(linumWidth-1, i-1, '~');
 		}
@@ -70,7 +76,7 @@ void refreshScreen() {
 			}
 		}
 	}
-	for (int i = 0; i < numrows && i < 25; i++) {
+	for (int i = 0; i < numrows && i < 23; i++) {
 		for (int j = 0; rowoff+i < numrows && j < rows[rowoff+i].len && j < 80; j++) {
 			addchr(linumWidth+j+1, i, rows[rowoff+i].chars[j]);
 		}
@@ -173,6 +179,7 @@ int readFile(char* filename) {
 
 int main(int argc, char* argv[])
 {
+	filename = argv[1];
 	if (readFile(argv[1]) != 0) {
 		return -1;
 	}
