@@ -106,8 +106,8 @@ void deleteChar(int i) {
 		return;
 	}
 	memmove(cur->chars+i-1, cur->chars+i, cur->len-i+1);
-	cur->len--;
 	cur->chars = realloc(cur->chars, cur->len-1);
+	cur->len--;
 }
 
 void backspace() {
