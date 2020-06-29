@@ -121,6 +121,7 @@ void handleKeypress() {
 	if (mode == Insert) {
 		if (c == KEY_ESCAPE) {
 			mode = Normal;
+			setCursor(cx, cy);
 		} else if (c == 8) {
 			backspace();
 		} else if (c != 0) {
