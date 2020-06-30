@@ -4,8 +4,10 @@
 #include <string.h>
 
 #include "../../include/keyboard.h"
+#include "../../include/hal/pit.h"
 
 #include "global.h"
+#include "audio.h"
 
 /*
  * Constants
@@ -87,6 +89,8 @@ static void updateMenu()
 	{
 		if (!justPressed)
 		{
+			playSFX(FX_SELECT);
+
 			gamestate = selected == BUTTON_START ? STATE_INGAME : STATE_EXIT;
 		
 			if (gamestate == STATE_INGAME)
@@ -173,6 +177,7 @@ static void updateInGame()
 	{
 		if (snake[i + 1] != 0xFFFF && snake[i] == newPos)
 		{
+			playSFX(FX_LOSE);
 			updateScores();
 			gamestate = STATE_GAMEOVER;
 		}
@@ -183,6 +188,8 @@ static void updateInGame()
 
 		if (gotApple && snake[i + 1] == 0xFFFF)
 		{
+			playSFX(FX_APPLE);
+
 			snake[i + 1] = current;
 			break;
 		}
@@ -234,6 +241,8 @@ static void updateGameover()
 	{
 		if (!justPressed)
 		{
+			playSFX(FX_SELECT);
+
 			gamestate = selected == BUTTON_START ? STATE_INGAME : STATE_MENU;
 		
 			if (gamestate == STATE_INGAME)

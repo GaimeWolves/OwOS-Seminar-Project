@@ -5,12 +5,12 @@ C_SRC := $(shell find . -name '*.c') # Recursively finds all C-Files in this dir
 C_OBJ := $(patsubst %.c, ${PROG_BUILD_DIR}/%.o, $(C_SRC)) # Replaces the file type of all C-Files with OBJ-Files
 C_DIR := $(shell find . -name '*.c' -type f -exec dirname {} \; | uniq) # Gets directories of all C-Files
 
-all: make-folders ${PROG_BUILD_DIR}/snake
+all: make-folders ${PROG_BUILD_DIR}/snake.elf
 
 ${PROG_BUILD_DIR}/%.o: %.c
 	${CC} ${CFLAGS} ${KERNEL_STDLIB_INCLUDE} -fpic -o $@ $<
 
-${PROG_BUILD_DIR}/snake: ${C_OBJ}
+${PROG_BUILD_DIR}/snake.elf: ${C_OBJ}
 	${LD} ${LFLAGS} --entry=main --dynamic-linker=ld-owos -pie -o $@ $^ -L${BUILD_DIR}/os -lc -lkernel -L${LIBGCC_DIR} -lgcc
 
 make-folders:

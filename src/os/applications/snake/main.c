@@ -8,6 +8,7 @@
 #include "global.h"
 #include "renderer.h"
 #include "logic.h"
+#include "audio.h"
 
 /*
  * Globals implementation
@@ -42,6 +43,7 @@ static void init()
 	disableCursor();
 	addSubhandler((pit_subhandler_t)render, 10);
 	addSubhandler((pit_subhandler_t)update, 10);
+	addSubhandler((pit_subhandler_t)updateAudio, 5);
 
 	hiscoreFile = fopen("/scores.bin", "rb+");
 
@@ -57,6 +59,9 @@ static void exit()
 	enableCursor(0, 0);
 	remSubhandler((pit_subhandler_t)render);
 	remSubhandler((pit_subhandler_t)update);
+	remSubhandler((pit_subhandler_t)updateAudio);
+
+	speakerStop();
 
 	fclose(hiscoreFile);
 }
