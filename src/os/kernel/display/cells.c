@@ -12,6 +12,7 @@
 //				Local Vars
 //------------------------------------------------------------------------------------------
 color_t internColor = FOREGROUND_WHITE | BACKGROUND_BLACK;
+size_t clrscr_count = 0;
 
 //------------------------------------------------------------------------------------------
 //				Private Function
@@ -42,6 +43,8 @@ void clrscr()
 	for(uint8_t x = 0; x < MAX_COLS; x++)
 		for(uint8_t y = 0; y < MAX_ROWS; y++)
 			getBufferPixel(x, y)->character = 0;
+
+	clrscr_count++;
 }
 
 void set_color(char fg, char bg)
