@@ -157,6 +157,9 @@ static int stream_parser(FILE** in_stream, bool* del_in_stream, FILE** out_strea
 //------------------------------------------------------------------------------------------
 int input_parser(const char* buffer, size_t buffersz, char** executable_name, int* argc, char*** args, FILE** in_stream, bool* del_in_stream, FILE** out_stream, bool* del_out_stream, FILE** err_stream, bool* del_err_stream)
 {
+	//Check if something is in the buffer
+	if(!buffersz)
+		return -2;
 	//Iterate through the buffer
 	size_t length = -1;
 	const char* base = buffer;
