@@ -26,6 +26,7 @@ int direction = RIGHT;
 int lastDirection = RIGHT;
 
 bool justPressed = false;
+bool loadedHiscores = false;
 
 /*
  * Private method declarations
@@ -85,6 +86,12 @@ static void initGame()
 
 static void updateMenu()
 {
+	if (!loadedHiscores && hiscoreFile)
+	{
+		loadedHiscores = true;
+		readScores();
+	}
+
 	if (kbWasPressed(KEY_SPACE) || kbWasPressed(KEY_RETURN))
 	{
 		if (!justPressed)
