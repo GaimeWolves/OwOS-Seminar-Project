@@ -56,7 +56,7 @@ static void init()
 
 static void exit()
 {
-	enableCursor(0, 0);
+	enableCursor(14, 15);
 	remSubhandler((pit_subhandler_t)render);
 	remSubhandler((pit_subhandler_t)update);
 	remSubhandler((pit_subhandler_t)updateAudio);
