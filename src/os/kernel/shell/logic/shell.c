@@ -74,6 +74,11 @@ static void shell_handle_input()
 
 			if(exe)
 				returnCode = linker_main(in_stream, out_stream, err_stream, exe, argc, args);
+			else
+			{
+				vfsWrite(err_stream, "No such executable", 18);
+				vfsFlush(err_stream);
+			}
 		}
 	}
 
