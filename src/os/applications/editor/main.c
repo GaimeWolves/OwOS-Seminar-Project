@@ -20,6 +20,11 @@ typedef struct row {
 	char* chars;
 } row;
 
+typedef struct command {
+	const char* c;
+	int (*f)(void* arg);
+} command;
+
 enum Mode mode;
 FILE* file;
 char* filename;
@@ -28,6 +33,19 @@ int cx, cy;
 int rowoff;
 row* rows;
 int linumWidth = 0;
+char commandBuf[512];
+int commandLen = 0;
+int test(void* arg) {
+	cx = 5;
+	cy = 5;
+	return 0;
+}
+command commands[] = {
+	{
+		"test",
+		test
+	}
+};
 
 void setCursor(int x, int y) {
 	if (x > rows[rowoff+cy].len) {
@@ -65,6 +83,9 @@ void refreshScreen() {
 	clrscr();
 	addstr(0, 23, filename);
 	addstr(0, 24, modes[mode]);
+	if(mode == Command) {
+		addstr(1, 24, commandBuf);
+	}
 
 	addchr(78, 23, '0');
 	for (int x = ((float)(rowoff+cy)/numrows)*100, n = 0; x; x /= 10, n++) {
@@ -115,6 +136,16 @@ void backspace() {
 	cx--;
 }
 
+int handleCommand(char* command) {
+	for (size_t i = 0; i < sizeof(commands)/sizeof(commands[0]); i++) {
+		if (strcmp(command, commands[i].c) == 0) {
+			commands[i].f(NULL);
+			return 0;
+		}
+	}
+	return -1;
+}
+
 void handleKeypress() {
 	char c;
 	while(fread(&c, 1, 1, stdin) == 0);
@@ -156,6 +187,20 @@ void handleKeypress() {
 				cx = rows[rowoff+cy].len + 1;
 				mode = Insert;
 				break;
+			case ':':
+				mode = Command;
+				break;
+		}
+	}
+	else if (mode == Command) {
+		if (c == '\n') {
+			handleCommand(commandBuf);
+			commandLen = 0;
+			commandBuf[commandLen] = 0;
+			mode = Normal;
+		} else {
+			commandBuf[commandLen++] = c;
+			commandBuf[commandLen] = 0;
 		}
 	}
 }
