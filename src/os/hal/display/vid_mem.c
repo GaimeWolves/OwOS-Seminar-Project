@@ -57,6 +57,25 @@ void swapBuffer(void)
 	memcpy(memory, buffer, sizeof(pixel_t) * VID_MEM_SIZE);
 }
 
+int copyFromBuffer(pixel_t* buf, size_t bufsz)
+{
+	if(bufsz != VID_MEM_SIZE)
+		return -1;
+
+	memcpy(buf, buffer, VID_MEM_SIZE * sizeof(pixel_t));
+
+	return 0;
+}
+int copyToBuffer(pixel_t* buf, size_t bufsz)
+{
+	if(bufsz != VID_MEM_SIZE)
+		return -1;
+
+	memcpy(buffer, buf, VID_MEM_SIZE * sizeof(pixel_t));
+
+	return 0;
+}
+
 pixel_t* getBufferPixel(uint8_t column, uint8_t row)
 {
 	if(!testBorderValid(column,row))

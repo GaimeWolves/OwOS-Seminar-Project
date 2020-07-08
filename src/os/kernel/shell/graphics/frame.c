@@ -16,7 +16,9 @@ typedef struct
 //------------------------------------------------------------------------------------------
 //				Local Vars
 //------------------------------------------------------------------------------------------
-shell_graphics_state_t state;
+static shell_graphics_state_t state;
+
+static pixel_t shell_screen_buffer[VID_MEM_SIZE];
 
 //------------------------------------------------------------------------------------------
 //				Private Function
@@ -178,4 +180,14 @@ void shell_frame_handle_input(char c)
 void shell_frame_handle_backspace(void)
 {
 	shell_frame_backspace();
+}
+
+void shell_frame_save_screen_state(void)
+{
+	copyFromBuffer(shell_screen_buffer, VID_MEM_SIZE);
+}
+
+void shell_frame_restore_screen_state(void)
+{
+	copyToBuffer(shell_screen_buffer, VID_MEM_SIZE);
 }

@@ -73,12 +73,30 @@ static void shell_handle_input()
 			FILE* exe = vfsOpen(executable_name, "r");
 
 			if(exe)
+			{
+				//Save screen state
+				shell_frame_save_screen_state();
+				int pre_clrscr_count = clrscr_count;
+
 				returnCode = linker_main(in_stream, out_stream, err_stream, exe, argc, args);
+				
+				//If the screen got cleared the shell needs to be restored
+				if(pre_clrscr_count != clrscr_count)
+					shell_frame_restore_screen_state();
+			}
+			else
+			{
+				vfsWrite(err_stream, "No such executable", 18);
+				vfsFlush(err_stream);
+			}
 		}
 	}
 
 	if(del_in_stream)
 		vfsClose(in_stream);
+	else
+		//If the in stream was used empty it
+		shell_in_empty_buffer();	
 	if(del_out_stream)
 		vfsClose(out_stream);
 	if(del_err_stream)

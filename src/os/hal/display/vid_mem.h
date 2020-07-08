@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------------------
 #include "pixel.h"
 
+#include <stddef.h>
+
 //------------------------------------------------------------------------------------------
 //				Constants
 //------------------------------------------------------------------------------------------
@@ -28,6 +30,9 @@
 //------------------------------------------------------------------------------------------
 int initVidMem();
 void swapBuffer();
+
+int copyFromBuffer(pixel_t* buf, size_t bufsz);
+int copyToBuffer(pixel_t* buf, size_t bufsz);
 
 pixel_t* getBufferPixel(uint8_t column, uint8_t row);
 int setBufferPixel(uint8_t column, uint8_t row, pixel_t pixelAttributes);

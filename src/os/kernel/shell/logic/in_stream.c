@@ -118,6 +118,12 @@ FILE* shell_in_stream_get(void)
 	return &shell_in_stream;
 }
 
+void shell_in_empty_buffer(void)
+{
+	shell_in_bufbase = 0;
+	shell_in_bufcount = 0;
+}
+
 void shell_in_stream_deinit(void)
 {
 	

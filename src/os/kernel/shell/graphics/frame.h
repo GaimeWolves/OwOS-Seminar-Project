@@ -26,4 +26,7 @@ void shell_frame_print_shell_line(void);
 void shell_frame_handle_input(char c);
 void shell_frame_handle_backspace(void);
 
+void shell_frame_save_screen_state(void);
+void shell_frame_restore_screen_state(void);
+
 #endif

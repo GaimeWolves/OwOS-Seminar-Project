@@ -140,6 +140,7 @@ int linker_main(FILE* in_stream, FILE* out_stream, FILE* err_stream, FILE* execu
 
 		returnCode = program_entry(argc, argv);
 
+		vfsFlush(stdin);
 		vfsFlush(stdout);
 		vfsFlush(stderr);
 	}

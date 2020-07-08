@@ -21,6 +21,7 @@
 //------------------------------------------------------------------------------------------
 void shell_in_stream_init(void);
 FILE* shell_in_stream_get(void);
+void shell_in_empty_buffer(void);
 void shell_in_stream_deinit(void);
 
 #endif
