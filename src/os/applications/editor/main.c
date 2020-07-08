@@ -35,15 +35,36 @@ row* rows;
 int linumWidth = 0;
 char commandBuf[512];
 int commandLen = 0;
+bool running = true;
+FILE* file;
 int test(void* arg) {
 	cx = 5;
 	cy = 5;
 	return 0;
 }
+int writeFile(void* arg) {
+	fseek(file, 0, SEEK_SET);
+	for (int i = 0; i < numrows; i++) {
+		fwrite((void*)rows[i].chars, sizeof(char), rows[i].len, file);
+		fwrite((void*)"\n", sizeof(char), 1, file);
+	}
+	return 0;
+}
+int quit(void* arg) {
+	running = false;
+}
 command commands[] = {
 	{
 		"test",
 		test
+	},
+	{
+		"w",
+		writeFile
+	},
+	{
+		"q",
+		quit
 	}
 };
 
@@ -206,7 +227,7 @@ void handleKeypress() {
 }
 
 int readFile(char* filename) {
-	FILE* file = fopen(filename, "r");
+	file = fopen(filename, "w+");
 	char* buffer = malloc(2001);
 	size_t read;
 	size_t off = 0;
@@ -247,9 +268,10 @@ int main(int argc, char* argv[])
 	set_color(FOREGROUND_WHITE, BACKGROUND_BLACK);
 	for (size_t buf = numrows; buf; buf /= 10, linumWidth++);
 	cx = 1;
-	while (true) {
+	while (running) {
 		refreshScreen();
 		handleKeypress();
 	}
+	fclose(file);
 	return 0;
 }
