@@ -167,6 +167,15 @@ int handleCommand(char* command) {
 	return -1;
 }
 
+void addLine(int y) {
+	rows = realloc(rows, sizeof(row) * (numrows+1));
+	memmove(&rows[y+1], &rows[y], sizeof(row)*(numrows-y));
+	rows[y].len = 0;
+	rows[y].chars = malloc(1);
+	rows[y].chars[0] = '\0';
+	numrows++;
+}
+
 void handleKeypress() {
 	char c;
 	while(fread(&c, 1, 1, stdin) == 0);
@@ -206,6 +215,16 @@ void handleKeypress() {
 				break;
 			case 'A':
 				cx = rows[rowoff+cy].len + 1;
+				mode = Insert;
+				break;
+			case 'o':
+				addLine(cy+1);
+				setCursor(0, cy+1);
+				mode = Insert;
+				break;
+			case 'O':
+				addLine(cy);
+				setCursor(0, cy);
 				mode = Insert;
 				break;
 			case ':':
