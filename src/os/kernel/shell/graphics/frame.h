@@ -3,7 +3,7 @@
 //------------------------------------------------------------------------------------------
 //				Includes
 //------------------------------------------------------------------------------------------
-#include <display/cells.h>
+#include <stdbool.h>
 
 //------------------------------------------------------------------------------------------
 //				Constants
@@ -28,5 +28,6 @@ void shell_frame_handle_backspace(void);
 
 void shell_frame_save_screen_state(void);
 void shell_frame_restore_screen_state(void);
+bool shell_frame_screen_state_changed(void);
 
 #endif

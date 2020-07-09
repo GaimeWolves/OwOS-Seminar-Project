@@ -76,12 +76,11 @@ static void shell_handle_input()
 			{
 				//Save screen state
 				shell_frame_save_screen_state();
-				int pre_clrscr_count = clrscr_count;
 
 				returnCode = linker_main(in_stream, out_stream, err_stream, exe, argc, args);
 				
-				//If the screen got cleared the shell needs to be restored
-				if(pre_clrscr_count != clrscr_count)
+				//If the screen state changed the application used the display interface
+				if(shell_frame_screen_state_changed())
 					shell_frame_restore_screen_state();
 			}
 			else

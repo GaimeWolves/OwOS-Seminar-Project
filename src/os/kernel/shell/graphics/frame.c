@@ -1,5 +1,7 @@
 #include "frame.h"
 
+#include <display/cells.h>
+
 #include <shell/cwdutils.h>
 
 #include <stdbool.h>
@@ -10,6 +12,7 @@
 //------------------------------------------------------------------------------------------
 typedef struct
 {
+	size_t clrscr_count;
 	uint8_t column;
 	uint8_t row;
 } shell_graphics_state_t;
@@ -185,9 +188,15 @@ void shell_frame_handle_backspace(void)
 void shell_frame_save_screen_state(void)
 {
 	copyFromBuffer(shell_screen_buffer, VID_MEM_SIZE);
+	state.clrscr_count = clrscr_count;
 }
 
 void shell_frame_restore_screen_state(void)
 {
 	copyToBuffer(shell_screen_buffer, VID_MEM_SIZE);
+}
+
+bool shell_frame_screen_state_changed(void)
+{
+	return state.clrscr_count != clrscr_count;
 }
