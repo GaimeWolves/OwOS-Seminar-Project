@@ -281,6 +281,15 @@ void handleKeypress() {
 				x = findWhitespaceForward(rows[rowoff+cy].chars, cx+1);
 				setCursor((x>=0 ? x : rows[rowoff+cy].len), cy);
 				break;
+			case 'd':
+				while(fread(&c, 1, 1, stdin) == 0);
+				switch(c) {
+					case 'd':
+						deleteLine(rowoff+cy);
+						setCursor(cx, cy);
+						break;
+				}
+				break;
 			case ':':
 				mode = Command;
 				break;
