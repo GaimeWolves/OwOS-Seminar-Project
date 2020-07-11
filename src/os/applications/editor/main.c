@@ -216,7 +216,7 @@ void handleKeypress() {
 		} else if (c == 8) {
 			backspace();
 		} else if (c == '\n') {
-			addLine(cy+1);
+			addLine(rowoff+cy+1);
 			setCursor(0, cy+1);
 		} else if (c != 0) {
 			insertChar(c);
@@ -251,12 +251,12 @@ void handleKeypress() {
 				mode = Insert;
 				break;
 			case 'o':
-				addLine(cy+1);
+				addLine(rowoff+cy+1);
 				setCursor(0, cy+1);
 				mode = Insert;
 				break;
 			case 'O':
-				addLine(cy);
+				addLine(rowoff+cy);
 				setCursor(0, cy);
 				mode = Insert;
 				break;
