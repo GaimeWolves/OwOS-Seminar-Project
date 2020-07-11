@@ -152,7 +152,18 @@ void deleteChar(int i) {
 	cur->len--;
 }
 
+void deleteLine(int y) {
+	memmove(&rows[y], &rows[y+1], sizeof(row)*(numrows-y));
+	rows = realloc(rows, sizeof(row) * (numrows-1));
+	numrows--;
+}
+
 void backspace() {
+	if (cx == 1) {
+		deleteLine(cy);
+		setCursor(rows[rowoff+cy-1].len+1, cy-1);
+		cx++;
+	}
 	deleteChar(cx-1);
 	cx--;
 }
