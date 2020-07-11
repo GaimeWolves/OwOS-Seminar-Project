@@ -204,6 +204,9 @@ void handleKeypress() {
 			setCursor(cx, cy);
 		} else if (c == 8) {
 			backspace();
+		} else if (c == '\n') {
+			addLine(cy+1);
+			setCursor(0, cy+1);
 		} else if (c != 0) {
 			insertChar(c);
 		}
