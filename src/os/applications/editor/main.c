@@ -176,8 +176,27 @@ void addLine(int y) {
 	numrows++;
 }
 
+int findWhitespaceForward(char* s, int x) {
+	for (int i = x; s[i]; i++) {
+		if (s[i] == ' ') {
+			return i;
+		}
+	}
+	return -1;
+}
+
+int findWhitespaceBackward(char* s, int x) {
+	for (int i = x; i >= 0; i--) {
+		if (s[i] == ' ') {
+			return i;
+		}
+	}
+	return -1;
+}
+
 void handleKeypress() {
 	char c;
+	int x;
 	while(fread(&c, 1, 1, stdin) == 0);
 	if (mode == Insert) {
 		if (c == KEY_ESCAPE) {
@@ -226,6 +245,27 @@ void handleKeypress() {
 				addLine(cy);
 				setCursor(0, cy);
 				mode = Insert;
+				break;
+			case 'w':
+				x = findWhitespaceForward(rows[rowoff+cy].chars, cx-1);
+				if (x == -1) {
+					setCursor(0, cy+1);
+				} else {
+					setCursor(x+2, cy);
+				}
+				break;
+			case 'b':
+				setCursor(findWhitespaceBackward(rows[rowoff+cy].chars, cx-3)+2, cy);
+				x = findWhitespaceBackward(rows[rowoff+cy].chars, cx);
+				if (x == -1) {
+					setCursor(0, cy-1);
+				} else {
+					setCursor(x+2, cy);
+				}
+				break;
+			case 'e':
+				x = findWhitespaceForward(rows[rowoff+cy].chars, cx+1);
+				setCursor((x>=0 ? x : rows[rowoff+cy].len), cy);
 				break;
 			case ':':
 				mode = Command;
