@@ -160,7 +160,7 @@ void deleteLine(int y) {
 
 void backspace() {
 	if (cx == 1) {
-		deleteLine(cy);
+		deleteLine(rowoff+cy);
 		setCursor(rows[rowoff+cy-1].len+1, cy-1);
 		cx++;
 	}
