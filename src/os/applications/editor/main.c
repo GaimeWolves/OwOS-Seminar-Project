@@ -305,6 +305,12 @@ void handleKeypress() {
 						break;
 				}
 				break;
+			case '0':
+				setCursor(0, cy);
+				break;
+			case '$':
+				setCursor(rows[rowoff+cy].len, cy);
+				break;
 			case ':':
 				mode = Command;
 				break;
