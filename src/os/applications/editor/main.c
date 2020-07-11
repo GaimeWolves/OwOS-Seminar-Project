@@ -307,11 +307,15 @@ int readFile(char* filename) {
 	buffer[off] = '\0';
 	
 	// read buffer line by line
-	for (size_t i = 0, last = 0; i < off && buffer[i] != 0; i++) {
+	size_t last = 0;
+	for (size_t i = 0; i < off && buffer[i] != 0; i++) {
 		if (buffer[i] == '\n') {
 			addRow(buffer+last, i-last);
 			last = i+1;
 		}
+	}
+	if (last == 0) {
+		addRow("", 0);
 	}
 	free(buffer);
 	return 0;
