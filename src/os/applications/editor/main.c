@@ -187,6 +187,13 @@ void addLine(int y) {
 	numrows++;
 }
 
+void deleteRange(int y, int x1, int x2) {
+	row* cur = &rows[y];
+	memmove(cur->chars+x1-1, cur->chars+x2, cur->len-x2+1);
+	cur->len -= x2-x1+1;
+	cur->chars = realloc(cur->chars, cur->len);
+}
+
 int findWhitespaceForward(char* s, int x) {
 	for (int i = x; s[i]; i++) {
 		if (s[i] == ' ') {
@@ -286,6 +293,14 @@ void handleKeypress() {
 				switch(c) {
 					case 'd':
 						deleteLine(rowoff+cy);
+						setCursor(cx, cy);
+						break;
+					case 'w':
+						deleteRange(rowoff+cy, cx, findWhitespaceForward(rows[rowoff+cy].chars, cx-1)+1);
+						setCursor(cx, cy);
+						break;
+					case 'e':
+						deleteRange(rowoff+cy, cx, findWhitespaceForward(rows[rowoff+cy].chars, cx-1));
 						setCursor(cx, cy);
 						break;
 				}
