@@ -61,6 +61,13 @@ int writeFile(void* arg) {
 }
 int quit(void* arg) {
 	running = false;
+	return 0;
+}
+
+int writeQuit(void* arg) {
+	writeFile(NULL);
+	quit(NULL);
+	return 0;
 }
 command commands[] = {
 	{
@@ -74,7 +81,12 @@ command commands[] = {
 	{
 		"q",
 		quit
+	},
+	{
+		"wq",
+		writeQuit
 	}
+
 };
 
 void setCursor(int x, int y) {
