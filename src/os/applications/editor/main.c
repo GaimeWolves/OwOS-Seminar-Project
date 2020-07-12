@@ -124,8 +124,22 @@ void refreshScreen() {
 	clrscr();
 	addstr(0, 23, filename);
 	addstr(0, 24, modes[mode]);
-	if(mode == Command || mode == Search) {
+	if (mode == Command || mode == Search) {
 		addstr(1, 24, inputBuf);
+	}
+	// Display [sel/total] for search
+	if (resultsel >= 0) {
+		int n = 0;
+		// Display numresults
+		for (int x = numresults; x; x /= 10, n++) {
+			addchr(80-n-1, 24, (x%10)+'0');
+		}
+		addchr(80-n-1, 24, '/');
+		n++;
+		// Display resultsel
+		for (int x = resultsel+1; x; x /= 10, n++) {
+			addchr(80-n-1, 24, (x%10)+'0');
+		}
 	}
 
 	addchr(78, 23, '0');
