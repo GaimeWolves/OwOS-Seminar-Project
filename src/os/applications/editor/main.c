@@ -218,7 +218,7 @@ int handleCommand(char* command) {
 }
 
 void handleSearch(char* s) {
-	resultsel = 0;
+	resultsel = -1;
 	results = malloc(sizeof(pos)*512);
 	int num = 0;
 	for (int r = 0; r < numrows; r++) {
@@ -402,6 +402,7 @@ void handleKey(char c) {
 			inputLen = 0;
 			inputBuf[inputLen] = 0;
 			mode = Normal;
+			handleKey('n');
 		} else if (c == 8) {
 			inputBackspace();
 		} else {
