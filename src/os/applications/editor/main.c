@@ -176,6 +176,11 @@ void backspace() {
 	cx--;
 }
 
+void inputBackspace() {
+	inputLen--;
+	inputBuf[inputLen] = 0;
+}
+
 int handleCommand(char* command) {
 	for (size_t i = 0; i < sizeof(commands)/sizeof(commands[0]); i++) {
 		if (strcmp(command, commands[i].c) == 0) {
@@ -360,6 +365,8 @@ void handleKeypress() {
 			inputLen = 0;
 			inputBuf[inputLen] = 0;
 			mode = Normal;
+		} else if (c == 8) {
+			inputBackspace();
 		} else {
 			inputBuf[inputLen++] = c;
 			inputBuf[inputLen] = 0;
@@ -371,6 +378,8 @@ void handleKeypress() {
 			inputLen = 0;
 			inputBuf[inputLen] = 0;
 			mode = Normal;
+		} else if (c == 8) {
+			inputBackspace();
 		} else {
 			inputBuf[inputLen++] = c;
 			inputBuf[inputLen] = 0;
