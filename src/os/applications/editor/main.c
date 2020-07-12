@@ -266,10 +266,8 @@ int findWhitespaceBackward(char* s, int x) {
 	return -1;
 }
 
-void handleKeypress() {
-	char c;
+void handleKey(char c) {
 	int x;
-	while(fread(&c, 1, 1, stdin) == 0);
 	if (mode == Insert) {
 		if (c == KEY_ESCAPE) {
 			mode = Normal;
@@ -461,7 +459,9 @@ int main(int argc, char* argv[])
 	cx = 1;
 	while (running) {
 		refreshScreen();
-		handleKeypress();
+		char c;
+		while(fread(&c, 1, 1, stdin) == 0);
+		handleKey(c);
 	}
 	fclose(file);
 	return 0;
