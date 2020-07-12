@@ -45,7 +45,7 @@ bool running = true;
 FILE* file;
 pos* results;
 int numresults;
-int resultsel;
+int resultsel = -1;
 int test(void* arg) {
 	cx = 5;
 	cy = 5;
