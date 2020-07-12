@@ -11,9 +11,10 @@ enum Mode
 	Normal,
 	Replace,
 	Command,
+	Search
 };
 
-const char* modes[] = {"-- INSERT --", "", "-- REPLACE --", ":"};
+const char* modes[] = {"-- INSERT --", "", "-- REPLACE --", ":", "/"};
 
 typedef struct row {
 	int len;
@@ -25,6 +26,11 @@ typedef struct command {
 	int (*f)(void* arg);
 } command;
 
+typedef struct pos {
+	int row;
+	int col;
+} pos;
+
 enum Mode mode;
 FILE* file;
 char* filename;
@@ -33,10 +39,13 @@ int cx, cy;
 int rowoff;
 row* rows;
 int linumWidth = 0;
-char commandBuf[512];
-int commandLen = 0;
+char inputBuf[512];
+int inputLen = 0;
 bool running = true;
 FILE* file;
+pos* results;
+int numresults;
+int resultsel;
 int test(void* arg) {
 	cx = 5;
 	cy = 5;
@@ -69,23 +78,22 @@ command commands[] = {
 };
 
 void setCursor(int x, int y) {
-	if (x > rows[rowoff+cy].len) {
-		x = rows[rowoff+cy].len;
-	}
-	if (x < 1) {
-		x = 1;
-	}
-	if (y > 22) {
-		y = 22;
-		rowoff++;
-	}
-	else if (y > numrows-1) {
+	if (y < 0) {
+		y = 0;
+	} else if (y > numrows-1) {
 		y = numrows-1;
 	}
-	else if (y < 0) {
-		y = 0;
-		if (rowoff > 0)
-			rowoff--;
+	if ((y-rowoff) > 22) {
+		rowoff = y-22;
+	}
+	if ((y-rowoff) < 0) {
+		rowoff = y;
+	}
+	if (x > rows[y].len) {
+		x = rows[y].len;
+	}
+	else if (x < 1) {
+		x = 1;
 	}
 	cx = x;
 	cy = y;
@@ -104,12 +112,12 @@ void refreshScreen() {
 	clrscr();
 	addstr(0, 23, filename);
 	addstr(0, 24, modes[mode]);
-	if(mode == Command) {
-		addstr(1, 24, commandBuf);
+	if(mode == Command || mode == Search) {
+		addstr(1, 24, inputBuf);
 	}
 
 	addchr(78, 23, '0');
-	for (int x = ((float)(rowoff+cy)/numrows)*100, n = 0; x; x /= 10, n++) {
+	for (int x = ((float)(cy)/numrows)*100, n = 0; x; x /= 10, n++) {
 		addchr(78-n, 23, (x%10)+'0');
 	}
 	addchr(79, 23, '%');
@@ -129,12 +137,12 @@ void refreshScreen() {
 			addchr(linumWidth+j+1, i, rows[rowoff+i].chars[j]);
 		}
 	}
-	move(cx+linumWidth, cy);
+	move(cx+linumWidth, cy-rowoff);
 	refresh();
 }
 
 void insertChar(char c) {
-	row* cur = &rows[rowoff+cy];
+	row* cur = &rows[cy];
 	cur->chars = realloc(cur->chars, cur->len+1);
 	memmove(cur->chars+cx, cur->chars+cx-1, cur->len-cx+1);
 	cur->len++;
@@ -143,7 +151,7 @@ void insertChar(char c) {
 }
 
 void deleteChar(int i) {
-	row* cur = &rows[rowoff+cy];
+	row* cur = &rows[cy];
 	if (i > cur->len || i < 1) {
 		return;
 	}
@@ -160,8 +168,8 @@ void deleteLine(int y) {
 
 void backspace() {
 	if (cx == 1) {
-		deleteLine(rowoff+cy);
-		setCursor(rows[rowoff+cy-1].len+1, cy-1);
+		deleteLine(cy);
+		setCursor(rows[cy-1].len+1, cy-1);
 		cx++;
 	}
 	deleteChar(cx-1);
@@ -176,6 +184,21 @@ int handleCommand(char* command) {
 		}
 	}
 	return -1;
+}
+
+void handleSearch(char* s) {
+	resultsel = 0;
+	results = malloc(sizeof(pos)*512);
+	int num = 0;
+	for (int r = 0; r < numrows; r++) {
+		for (char* p = strstr(rows[r].chars, s); p; p = strstr(p, s)) {
+			results[num].row = r;
+			results[num].col = p-rows[r].chars;
+			num++;
+			p++;
+		}
+	}
+	numresults = num;
 }
 
 void addLine(int y) {
@@ -223,7 +246,7 @@ void handleKeypress() {
 		} else if (c == 8) {
 			backspace();
 		} else if (c == '\n') {
-			addLine(rowoff+cy+1);
+			addLine(cy+1);
 			setCursor(0, cy+1);
 		} else if (c != 0) {
 			insertChar(c);
@@ -254,21 +277,21 @@ void handleKeypress() {
 				mode = Insert;
 				break;
 			case 'A':
-				cx = rows[rowoff+cy].len + 1;
+				cx = rows[cy].len + 1;
 				mode = Insert;
 				break;
 			case 'o':
-				addLine(rowoff+cy+1);
+				addLine(cy+1);
 				setCursor(0, cy+1);
 				mode = Insert;
 				break;
 			case 'O':
-				addLine(rowoff+cy);
+				addLine(cy);
 				setCursor(0, cy);
 				mode = Insert;
 				break;
 			case 'w':
-				x = findWhitespaceForward(rows[rowoff+cy].chars, cx-1);
+				x = findWhitespaceForward(rows[cy].chars, cx-1);
 				if (x == -1) {
 					setCursor(0, cy+1);
 				} else {
@@ -276,8 +299,8 @@ void handleKeypress() {
 				}
 				break;
 			case 'b':
-				setCursor(findWhitespaceBackward(rows[rowoff+cy].chars, cx-3)+2, cy);
-				x = findWhitespaceBackward(rows[rowoff+cy].chars, cx);
+				setCursor(findWhitespaceBackward(rows[cy].chars, cx-3)+2, cy);
+				x = findWhitespaceBackward(rows[cy].chars, cx);
 				if (x == -1) {
 					setCursor(0, cy-1);
 				} else {
@@ -285,22 +308,22 @@ void handleKeypress() {
 				}
 				break;
 			case 'e':
-				x = findWhitespaceForward(rows[rowoff+cy].chars, cx+1);
-				setCursor((x>=0 ? x : rows[rowoff+cy].len), cy);
+				x = findWhitespaceForward(rows[cy].chars, cx+1);
+				setCursor((x>=0 ? x : rows[cy].len), cy);
 				break;
 			case 'd':
 				while(fread(&c, 1, 1, stdin) == 0);
 				switch(c) {
 					case 'd':
-						deleteLine(rowoff+cy);
+						deleteLine(cy);
 						setCursor(cx, cy);
 						break;
 					case 'w':
-						deleteRange(rowoff+cy, cx, findWhitespaceForward(rows[rowoff+cy].chars, cx-1)+1);
+						deleteRange(cy, cx, findWhitespaceForward(rows[cy].chars, cx-1)+1);
 						setCursor(cx, cy);
 						break;
 					case 'e':
-						deleteRange(rowoff+cy, cx, findWhitespaceForward(rows[rowoff+cy].chars, cx-1));
+						deleteRange(cy, cx, findWhitespaceForward(rows[cy].chars, cx-1));
 						setCursor(cx, cy);
 						break;
 				}
@@ -309,7 +332,22 @@ void handleKeypress() {
 				setCursor(0, cy);
 				break;
 			case '$':
-				setCursor(rows[rowoff+cy].len, cy);
+				setCursor(rows[cy].len, cy);
+				break;
+			case '/':
+				mode = Search;
+				break;
+			case 'n':
+				if (resultsel < numresults-1) {
+					resultsel++;
+					setCursor(results[resultsel].col+1, results[resultsel].row);
+				}
+				break;
+			case 'N':
+				if (resultsel > 0) {
+					resultsel--;
+					setCursor(results[resultsel].col+1, results[resultsel].row);
+				}
 				break;
 			case ':':
 				mode = Command;
@@ -318,13 +356,24 @@ void handleKeypress() {
 	}
 	else if (mode == Command) {
 		if (c == '\n') {
-			handleCommand(commandBuf);
-			commandLen = 0;
-			commandBuf[commandLen] = 0;
+			handleCommand(inputBuf);
+			inputLen = 0;
+			inputBuf[inputLen] = 0;
 			mode = Normal;
 		} else {
-			commandBuf[commandLen++] = c;
-			commandBuf[commandLen] = 0;
+			inputBuf[inputLen++] = c;
+			inputBuf[inputLen] = 0;
+		}
+	}
+	else if (mode == Search) {
+		if (c == '\n') {
+			handleSearch(inputBuf);
+			inputLen = 0;
+			inputBuf[inputLen] = 0;
+			mode = Normal;
+		} else {
+			inputBuf[inputLen++] = c;
+			inputBuf[inputLen] = 0;
 		}
 	}
 }
