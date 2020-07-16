@@ -4,7 +4,7 @@ STDLIB_BUILD_DIR := $(BUILD_DIR)/os
 C_SRC := $(shell find . -name '*.c') # Recursively finds all C-Files in this directory
 C_OBJ := $(patsubst %.c, ${STDLIB_BUILD_DIR}/stdlib/%.o, $(C_SRC)) # Replaces the file type of all C-Files with OBJ-Files
 C_DIR := $(shell find . -name '*.c' -type f -exec dirname {} \; | uniq) # Gets directories of all C-Files
-LIBGCC_DIR := $(shell dirname '$(shell find $(shell find /usr/lib /opt -type d -iname i686-elf 2>/dev/null) -iname libgcc.a 2> /dev/null)')
+export LIBGCC_DIR := $(shell dirname '$(shell find $(shell find /usr/lib /opt -type d -iname i686-elf 2>/dev/null) -iname libgcc.a 2> /dev/null)')
 
 .DEFAULT_GOAL := all
 all: make-folders ${STDLIB_BUILD_DIR}/libc.so

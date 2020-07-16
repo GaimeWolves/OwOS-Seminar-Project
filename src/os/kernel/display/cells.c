@@ -51,7 +51,7 @@ void set_color(char fg, char bg)
 {
 	internColor = fg | bg;
 
-	updateColor();
+	//updateColor();
 }
 
 int move(int x, int y)

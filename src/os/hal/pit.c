@@ -111,3 +111,25 @@ int remSubhandler(pit_subhandler_t subhandler)
 	//Return success
 	return 0;
 }
+
+void speakerPlay(uint32_t frequency)
+{
+	// Configure PIT timer 2
+	uint32_t div = 1193180 / frequency;
+	outb(PORT_COMMAND, IWC1_CHANNEL_2 | IWC1_LOW_HIGH_BYTES | IWC1_MODE_3);
+	outb(PORT_CHANNEL_2, (uint8_t)(div));
+	outb(PORT_CHANNEL_2, (uint8_t)(div >> 8));
+
+	// Enable speaker if disabled
+	uint8_t state = inb(PORT_CHANNEL_2_GATE);
+
+	if (state != (state | 3)) // Check state of speaker
+		outb(PORT_CHANNEL_2_GATE, state | 3); // Flip speaker gate voltage
+}
+
+void speakerStop()
+{
+	// Deactivate speaker
+	uint8_t state = inb(PORT_CHANNEL_2_GATE) & 0xFC;
+	outb(PORT_CHANNEL_2_GATE, state);
+}

@@ -15,7 +15,7 @@ export KERNEL_STDLIB_INCLUDE := -I$(SRC_DIR)/os/stdlib/include
 export CFLAGS := -ffreestanding -c -O0 -g -Wall -Wextra -D _DEBUG
 
 .DEFAULT_GOAL := all
-all: make-folders ${OS_BUILD_DIR}/kernel.elf submake_all_stdlib
+all: make-folders ${OS_BUILD_DIR}/kernel.elf submake_all_stdlib submake_all_applications
 	@echo "Building OS in:"
 	@echo ${OS_BUILD_DIR}
 

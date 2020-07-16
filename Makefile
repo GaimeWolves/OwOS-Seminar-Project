@@ -32,6 +32,18 @@ setup_iso_settings:
 	mount $(loopback_interface)p1 fs
 
 clear_iso_settings:
+	mkdir -p fs/bin
+
+	-for dir in `find build/os/* -type d`; \
+	do \
+		for elf in $$dir/*.elf; \
+		do \
+			if [ -f $$elf ]; then \
+				cp $$elf fs/bin/; \
+			fi; \
+		done; \
+	done;
+
 	umount fs
 	losetup -d $(loopback_interface)
 
