@@ -13,6 +13,8 @@
 #define PORT_CHANNEL_2      0x42
 #define PORT_COMMAND        0x43
 
+#define PORT_CHANNEL_2_GATE 0x61
+
 //BCD/Binary mode
 #define IWC1_BINARY         0b00000000
 #define IWC1_FOUR_DIGIT_BCD 0b00000001
@@ -55,5 +57,8 @@ int initPIT(void);
 
 int addSubhandler(pit_subhandler_t,uint32_t);
 int remSubhandler(pit_subhandler_t);
+
+void speakerPlay(uint32_t frequency);
+void speakerStop();
 
 #endif
