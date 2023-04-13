@@ -29,9 +29,45 @@ static void scrollText()
 	memset((void*)(VIDMEM + (ROWS - 1) * COLS * 2), 0, COLS * 2);
 }
 
+void _outb(uint16_t port, uint8_t data)
+{
+	asm volatile("outb %0, %1"::"a"(data),"dN"(port));
+}
+
+uint8_t _inb(uint16_t port)
+{
+	uint8_t data = 0;
+	asm volatile("inb %1, %0":"=a"(data):"dN"(port));
+	return data;
+}
+
 // Writes a character to the screen
 static void putc(const char c)
 {
+	const uint16_t PORT = 0x3f8;
+	static int init = 0;
+
+	if (!init) {
+		_outb(PORT + 1, 0x00);    // Disable all interrupts
+		_outb(PORT + 3, 0x80);    // Enable DLAB (set baud rate divisor)
+		_outb(PORT + 0, 0x01);    // Set divisor to 3 (lo byte) 38400 baud
+		_outb(PORT + 1, 0x00);    //                  (hi byte)
+		_outb(PORT + 3, 0x03);    // 8 bits, no parity, one stop bit
+		_outb(PORT + 2, 0xC7);    // Enable FIFO, clear them, with 14-byte threshold
+		_outb(PORT + 4, 0x0B);    // IRQs enabled, RTS/DSR set
+		_outb(PORT + 4, 0x1E);    // Set in loopback mode, test the serial chip
+		_outb(PORT + 0, 0xAE);    // Test serial chip (send byte 0xAE and check if serial returns same byte)
+	
+    	_inb(PORT + 0);
+	
+		_outb(PORT + 4, 0x0F);  // not-loopback with IRQs enabled and OUT#1 and OUT#2 bits enabled
+	
+		init = 1;
+	}
+	
+	while ((_inb(PORT + 5) & 0x20) == 0) {}
+	_outb(PORT, (uint8_t)c);
+
 	if (c == '\n' || xPos >= COLS)
 	{
 		xPos = 0;
@@ -96,6 +132,7 @@ int debug_print(const char *s)
 
 	putsig();
 	puts(s);
+	putc('\n');
 
 	return 0;
 }

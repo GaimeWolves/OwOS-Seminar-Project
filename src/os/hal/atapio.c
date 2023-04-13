@@ -11,6 +11,7 @@
 #include <hal/cpu.h>
 #include <hal/pic.h>
 #include <hal/interrupt.h>
+#include <debug.h>
 
 //------------------------------------------------------------------------------------------
 //				Constants
@@ -378,8 +379,10 @@ static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba
 	while(sectors--)
 	{
 		// Poll until data is ready
-		if (poll(bus))
+		if (poll(bus)) {
+			debug_print("something brokey here");
 			return -1;
+		}
 
 		// Read data into buffer
 		for (int i = 0; i < NUM_WORDS; i++)
@@ -416,23 +419,35 @@ static int doPIOTransfer(uint16_t *buf, uint8_t bus, uint8_t drive, uint64_t lba
 static int doDataTansfer(void* buf, uint64_t lba, uint32_t sectors, uint8_t drive, bool mode)
 {
 	// Error handling
-	if (!buf)
+	if (!buf) {
+		debug_print("no buffer");
 		return -1;
+	}
 
-	if (sectors == 0)
+	if (sectors == 0) {
+		debug_print("no sectors");
 		return 0;
+	}
 
-	if (drive >= ATA_MAX_DRIVES)
+	if (drive >= ATA_MAX_DRIVES) {
+		debug_print("invalid drive");
 		return -1;
+	}
 
-	if (!drives[drive].inserted)
+	if (!drives[drive].inserted) {
+		debug_print("drive not inserted");
 		return -1;
+	}
 
-	if (lba + sectors > (drives[drive].hasLBA48 ? LBA48_MAX : LBA28_MAX))
+	if (lba + sectors > (drives[drive].hasLBA48 ? LBA48_MAX : LBA28_MAX)) {
+		debug_print("too high address");
 		return -1;
+	}
 
-	if (drives[drive].size < lba + sectors)
+	if (drives[drive].size < lba + sectors) {
+		debug_print("exceeds disk size");
 		return -1;
+	}
 
 	// If possible use LBA28 because its faster
 	bool useLBA48 = lba + sectors > LBA28_MAX;

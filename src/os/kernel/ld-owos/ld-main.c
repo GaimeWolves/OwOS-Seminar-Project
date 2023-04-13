@@ -29,6 +29,15 @@
 //				Variables
 //------------------------------------------------------------------------------------------
 
+//Save libinfos of all loaded libs
+libinfo_t* loaded_libs[MAX_LOADED_LIBS];
+size_t loaded_lib_count;
+
+//The dynamic linked shell streams
+FILE* stdout;
+FILE* stdin;
+FILE* stderr;
+
 //------------------------------------------------------------------------------------------
 //				Private function
 //------------------------------------------------------------------------------------------

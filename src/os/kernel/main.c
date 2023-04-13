@@ -6,6 +6,7 @@
 #include <keyboard.h>
 #include <vfs/vfs.h>
 #include <shell/shell.h>
+#include <debug.h>
 
 _Noreturn void main(uint32_t magic, multiboot_info_t *boot_info)
 {

@@ -1499,6 +1499,8 @@ int readdirFAT32(DIR *dirstream)
 
 file_desc_t *findfileFAT32(file_desc_t *node, char *name)
 {
+	debug_printf("findfileFAT32: %s", name);
+
 	dir_chain_t *directory = parseDirectory(node);
 
 	for (dir_chain_t *current = directory; current; current = current->next)
@@ -1594,6 +1596,8 @@ int renameFAT32(file_desc_t *file, file_desc_t *newParent, char *origName)
 // Mount the filesystem by reading the BPB and FSInfo structs and saving them as metadata
 mountpoint_t *mountFAT32(partition_t *partition)
 {
+	debug_printf("mountFAT32");
+
 	// Read in BPB block
 	bpb_t *bpb = kmalloc(sizeof(bpb_t));
 	if (ataRead((void*)bpb, partition->offset, 1, partition->device))
@@ -1624,7 +1628,7 @@ mountpoint_t *mountFAT32(partition_t *partition)
 	metadata->bpb = bpb;
 	metadata->fsinfo = fsinfo;
 	metadata->bytesPerCluster = bpb->bytesPerSector * bpb->sectorsPerCluster;
-	metadata->firstFATSector = partition->offset + bpb->hiddenSectors + bpb->reservedSectors;
+	metadata->firstFATSector = /*partition->offset + */ bpb->hiddenSectors + bpb->reservedSectors;
 	metadata->firstDataSector = metadata->firstFATSector + (bpb->numberOfFATs * bpb->ebpb.sectorsPerFAT);
 
 	// Create root file descriptor
@@ -1638,6 +1642,8 @@ mountpoint_t *mountFAT32(partition_t *partition)
 	rootdir->readdir = (readdir_callback)readdirFAT32;
 	rootdir->mkfile = (mkfile_callback)mkfileFAT32;
 	rootdir->rmfile = (rmfile_callback)rmfileFAT32;
+
+	debug_printf("rootdir->findfile: %p", rootdir->findfile);
 
 	// Create the mountpoint
 	mount->partition = partition;

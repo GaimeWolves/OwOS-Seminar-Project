@@ -1,11 +1,12 @@
 SRC_DIR ?= "${PWD}/src"
 BUILD_DIR ?= "${PWD}/build"
 OS_BUILD_DIR := $(BUILD_DIR)/os
+PREFIX ?= "ADD-PATH-HERE"
 
 MAKE := make
 
-export LD := i686-elf-ld
-export CC := i686-elf-gcc
+export LD := ${PREFIX}/bin/i686-elf-ld
+export CC := ${PREFIX}/bin/i686-elf-gcc
 export AR := ar rcs
 export KERNEL_LINKER_SCRIPT := -T ${SRC_DIR}/os/linker.ld
 export KERNEL_LIB_LINKER_SCRIPT := -T ${SRC_DIR}/os/linker-so.ld
@@ -32,7 +33,8 @@ endif
 
 ${OS_BUILD_DIR}/kernel.elf: ${OS_BUILD_DIR}/entry.o submake_all_kernel submake_all_hal submake_all_lib
 	${CC} ${LFLAGS} -fno-pie ${KERNEL_LINKER_SCRIPT} -o ${OS_BUILD_DIR}/kernel.elf $< -L${OS_BUILD_DIR} -l:kernel/kernel.lib -l:hal/hal.lib -l:lib/lib.lib -lgcc
-	${LD} -shared ${LFLAGS} ${KERNEL_LIB_LINKER_SCRIPT} -o ${OS_BUILD_DIR}/libkernel.so -L${OS_BUILD_DIR} -l:kernel.elf
+	${CC} -Wl,-r ${LFLAGS} -fno-pie ${KERNEL_LINKER_SCRIPT} -o ${OS_BUILD_DIR}/kernel-r.elf $< -L${OS_BUILD_DIR} -l:kernel/kernel.lib -l:hal/hal.lib -l:lib/lib.lib -lgcc
+	${LD} -shared ${LFLAGS} ${KERNEL_LIB_LINKER_SCRIPT} -o ${OS_BUILD_DIR}/libkernel.so -L${OS_BUILD_DIR} -l:kernel-r.elf
 
 ${OS_BUILD_DIR}/%.o: %.c
 	-${CC} ${CFLAGS} ${KERNEL_INCLUDE} -o $@ $<

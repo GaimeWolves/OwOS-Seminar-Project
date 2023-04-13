@@ -13,6 +13,7 @@
 #include <stdnoreturn.h>
 #include <stdbool.h>
 #include <string.h>
+#include <debug.h>
 
 //------------------------------------------------------------------------------------------
 //				Types
